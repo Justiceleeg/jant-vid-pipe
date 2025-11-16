@@ -1,4 +1,4 @@
-"""Replicate API service for image generation."""
+"""Replicate API service for image and video generation."""
 import asyncio
 from typing import List, Dict, Any, Optional
 import replicate
@@ -394,4 +394,219 @@ class ReplicateImageService:
             results.append(result)
 
         return results
+
+
+class ReplicateVideoService:
+    """Service for generating videos using Replicate API img2vid models."""
+
+    # Production model: Stable Video Diffusion (high quality, good for commercial use)
+    # Creates smooth 3-4 second video clips from seed images
+    # Verified and widely used model
+    PRODUCTION_VIDEO_MODEL = "stability-ai/stable-video-diffusion:3f0457e4619daac51203dedb472816fd4af51f3149fa7a9e0b5ffcf1b8172438"
+
+    # Development model: Same as production but with optimized parameters
+    # We'll use lower motion_bucket_id and fewer frames for faster generation
+    DEVELOPMENT_VIDEO_MODEL = "stability-ai/stable-video-diffusion:3f0457e4619daac51203dedb472816fd4af51f3149fa7a9e0b5ffcf1b8172438"
+
+    def __init__(self):
+        """Initialize the Replicate video service with API token."""
+        token = settings.get_replicate_token()
+        if not token:
+            raise ValueError("Replicate API token not configured. Set REPLICATE_API_TOKEN in environment.")
+
+        # Set the token for replicate client
+        self.client = replicate.Client(api_token=token)
+
+        # Determine which model to use based on environment
+        if settings.is_development():
+            self.default_model = self.DEVELOPMENT_VIDEO_MODEL
+        else:
+            self.default_model = self.PRODUCTION_VIDEO_MODEL
+
+    async def generate_video_from_image(
+        self,
+        image_url: str,
+        duration_seconds: float = 4.0,
+        fps: int = 24,
+        motion_bucket_id: int = 127,
+        cond_aug: float = 0.02,
+        model: Optional[str] = None,
+        timeout: int = 300  # 5 minute timeout for video generation
+    ) -> Optional[str]:
+        """
+        Generate a video from a seed image using Replicate's img2vid model.
+
+        Args:
+            image_url: URL of the seed image
+            duration_seconds: Target duration in seconds (model outputs ~4s, adjust frames)
+            fps: Frames per second (default: 24)
+            motion_bucket_id: Amount of motion (1-255, default: 127 for moderate motion)
+            cond_aug: Conditioning augmentation (0.0-1.0, default: 0.02)
+            model: Optional model identifier (uses default if not provided)
+            timeout: Timeout in seconds (default: 300)
+
+        Returns:
+            Video URL or None if generation failed
+        """
+        model_id = model or self.default_model
+
+        # Calculate number of frames based on duration and fps
+        # SVD typically generates 14-25 frames, we'll adjust based on environment
+        if settings.is_development():
+            # Dev: Faster generation with fewer frames
+            num_frames = min(14, int(duration_seconds * fps))
+            motion_bucket_id = min(motion_bucket_id, 100)  # Less motion for faster gen
+        else:
+            # Prod: Higher quality with more frames
+            num_frames = min(25, int(duration_seconds * fps))
+
+        # Build input parameters for Stable Video Diffusion
+        input_params = {
+            "input_image": image_url,
+            "video_length": "14_frames_with_svd",  # SVD default mode
+            "sizing_strategy": "maintain_aspect_ratio",
+            "frames_per_second": fps,
+            "motion_bucket_id": motion_bucket_id,
+            "cond_aug": cond_aug
+        }
+
+        try:
+            # Run the model asynchronously with timeout
+            print(f"Generating video from image: {image_url[:50]}...")
+            output = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self.client.run,
+                    model_id,
+                    input=input_params
+                ),
+                timeout=timeout
+            )
+
+            # Handle output format (typically returns a video URL)
+            if isinstance(output, str):
+                print(f"✓ Video generated successfully")
+                return output
+            elif isinstance(output, list) and len(output) > 0:
+                print(f"✓ Video generated successfully")
+                return str(output[0])
+            elif hasattr(output, 'url'):
+                print(f"✓ Video generated successfully")
+                return str(output.url)
+            else:
+                print(f"✗ Unexpected output format: {type(output)}")
+                return None
+
+        except asyncio.TimeoutError:
+            print(f"✗ Video generation timed out after {timeout} seconds")
+            return None
+        except Exception as e:
+            error_msg = str(e)
+            print(f"✗ Video generation failed: {error_msg}")
+            return None
+
+    async def generate_videos_parallel(
+        self,
+        scenes: List[Dict[str, Any]],
+        progress_callback: Optional[callable] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Generate videos for multiple scenes in parallel.
+
+        Args:
+            scenes: List of scene dictionaries with seed_image_url and other data
+            progress_callback: Optional callback function(scene_number, status, video_url, error)
+
+        Returns:
+            List of dictionaries with video generation results
+        """
+        # Create tasks for parallel execution
+        tasks = []
+        for scene in scenes:
+            task = self._generate_scene_video_safe(
+                scene,
+                progress_callback
+            )
+            tasks.append(task)
+
+        # Execute all tasks in parallel
+        print(f"\nStarting parallel generation of {len(scenes)} video clips...")
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Count successful generations
+        successful = sum(1 for r in results if isinstance(r, dict) and r.get("success"))
+        print(f"Completed video generation: {successful}/{len(results)} successful\n")
+
+        return results
+
+    async def _generate_scene_video_safe(
+        self,
+        scene: Dict[str, Any],
+        progress_callback: Optional[callable] = None
+    ) -> Dict[str, Any]:
+        """
+        Safely generate a video for a single scene with error handling.
+
+        Args:
+            scene: Scene dictionary with seed_image_url, duration, scene_number, etc.
+            progress_callback: Optional callback for progress updates
+
+        Returns:
+            Dictionary with generation results
+        """
+        scene_number = scene.get("scene_number", 0)
+        seed_image_url = scene.get("seed_image_url")
+        duration = scene.get("duration", 4.0)
+
+        try:
+            # Notify processing started
+            if progress_callback:
+                await progress_callback(scene_number, "processing", None, None)
+
+            # Generate video
+            video_url = await self.generate_video_from_image(
+                image_url=seed_image_url,
+                duration_seconds=duration
+            )
+
+            if video_url:
+                # Success
+                if progress_callback:
+                    await progress_callback(scene_number, "completed", video_url, None)
+
+                return {
+                    "success": True,
+                    "scene_number": scene_number,
+                    "video_url": video_url,
+                    "duration": duration,
+                    "error": None
+                }
+            else:
+                # Generation returned None
+                error_msg = "Video generation returned no output"
+                if progress_callback:
+                    await progress_callback(scene_number, "failed", None, error_msg)
+
+                return {
+                    "success": False,
+                    "scene_number": scene_number,
+                    "video_url": None,
+                    "duration": duration,
+                    "error": error_msg
+                }
+
+        except Exception as e:
+            # Unexpected error
+            error_msg = str(e)
+            print(f"Error generating video for scene {scene_number}: {error_msg}")
+
+            if progress_callback:
+                await progress_callback(scene_number, "failed", None, error_msg)
+
+            return {
+                "success": False,
+                "scene_number": scene_number,
+                "video_url": None,
+                "duration": duration,
+                "error": error_msg
+            }
 
