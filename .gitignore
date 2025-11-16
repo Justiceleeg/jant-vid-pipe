@@ -25,6 +25,9 @@ frontend/.env.local
 *.sln
 *.sw?
 
+# Cursor MCP configuration (contains personal API keys)
+.cursor/mcp.json
+
 # OS specific
 .DS_Store
 
