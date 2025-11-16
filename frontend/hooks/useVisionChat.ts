@@ -105,8 +105,7 @@ export function useVisionChat(): UseVisionChatReturn {
 
   // Check if conversation has enough information to proceed
   const canProceed = useMemo(() => {
-    // HARDCODED: Always allow proceeding for testing
-    return true;
+    return creativeBrief ? isCreativeBriefComplete(creativeBrief) : false;
   }, [creativeBrief]);
 
   // Manual extraction function with enhanced error handling
@@ -119,20 +118,14 @@ export function useVisionChat(): UseVisionChatReturn {
     setError(null);
 
     try {
-      // HARDCODED for testing
-      const hardcodedBrief: CreativeBrief = {
-        product_name: "Epic Mountain Adventure",
-        target_audience: "Adventure seekers and nature lovers aged 25-45",
-        emotional_tone: ["inspirational", "energetic", "adventurous", "bold"],
-        visual_style_keywords: ["cinematic", "dramatic", "vibrant", "epic", "golden-hour"],
-        key_messages: [
-          "Explore the unknown",
-          "Push your limits",
-          "Find your freedom",
-          "Experience nature's grandeur"
-        ]
-      };
-      setCreativeBrief(hardcodedBrief);
+      // Call actual API endpoint
+      const extractedBrief = await extractCreativeBrief(messages);
+      
+      if (!extractedBrief) {
+        throw new Error('Failed to extract creative brief from conversation');
+      }
+
+      setCreativeBrief(extractedBrief);
     } catch (error) {
       console.error('Extraction error:', error);
       const errorMessage = getErrorMessage(error);
@@ -140,7 +133,7 @@ export function useVisionChat(): UseVisionChatReturn {
     } finally {
       setIsExtracting(false);
     }
-  }, [isExtracting, isLoading, setError, setCreativeBrief]);
+  }, [messages, isExtracting, isLoading, setError, setCreativeBrief]);
 
   // Handle sending messages with validation
   const onSendMessage = useCallback(
@@ -207,19 +200,21 @@ export function useVisionChat(): UseVisionChatReturn {
     // - Currently loading a response
     // - Already have a complete brief
     // - Already attempted extraction
+    // - Don't have enough conversation yet
     if (
       isExtracting ||
       isLoading ||
       isCreativeBriefComplete(creativeBrief) ||
-      extractionAttemptedRef.current
+      extractionAttemptedRef.current ||
+      !hasEnoughConversation(messages)
     ) {
       return;
     }
 
-    // HARDCODED: Auto-extract immediately on mount for testing
+    // Attempt extraction when we have enough conversation
     extractionAttemptedRef.current = true;
     extractBrief();
-  }, [isLoading, isExtracting, creativeBrief, extractBrief]);
+  }, [messages, isLoading, isExtracting, creativeBrief, extractBrief]);
 
   // Track message count changes and reset extraction flag when conversation is cleared
   useEffect(() => {

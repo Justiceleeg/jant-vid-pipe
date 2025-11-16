@@ -40,6 +40,8 @@ export async function checkHealth(): Promise<{ status: string }> {
 }
 
 import type { MoodGenerationRequest, MoodGenerationResponse } from '@/types/mood.types';
+import type { ScenePlanRequest, ScenePlanResponse } from '@/types/scene.types';
+import type { AudioGenerationRequest, AudioGenerationResponse } from '@/types/audio.types';
 
 /**
  * Generate mood boards from a creative brief
@@ -53,8 +55,27 @@ export async function generateMoods(
   });
 }
 
-// Additional API client functions will be added in later tasks:
-// - Scene planning endpoints (Task 4)
-// - Video generation endpoints (Task 5)
-// - Video composition endpoints (Task 7)
+/**
+ * Generate scene plan with seed images from creative brief and mood
+ */
+export async function generateScenePlan(
+  request: ScenePlanRequest
+): Promise<ScenePlanResponse> {
+  return apiRequest<ScenePlanResponse>('/api/scenes/plan', {
+    method: 'POST',
+    body: JSON.stringify(request),
+  });
+}
+
+/**
+ * Generate background music for a mood
+ */
+export async function generateAudio(
+  request: AudioGenerationRequest
+): Promise<AudioGenerationResponse> {
+  return apiRequest<AudioGenerationResponse>('/api/audio/generate', {
+    method: 'POST',
+    body: JSON.stringify(request),
+  });
+}
 

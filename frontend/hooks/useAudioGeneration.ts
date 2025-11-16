@@ -1,8 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useAppStore } from '@/store/appStore';
+import { generateAudio as apiGenerateAudio } from '@/lib/api/client';
 import type { AudioGenerationRequest, AudioGenerationResponse } from '@/types/audio.types';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export function useAudioGeneration() {
   const [isLoading, setIsLoading] = useState(false);
@@ -19,16 +18,17 @@ export function useAudioGeneration() {
       setError(null);
 
       try {
-        // HARDCODED for testing
-        const hardcodedAudioUrl = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
-        
-        // Simulate API delay
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // Store audio URL
-        setAudioUrl(hardcodedAudioUrl);
+        // Call actual API endpoint
+        const response = await apiGenerateAudio(request);
 
-        return hardcodedAudioUrl;
+        if (!response.success || !response.audio_url) {
+          throw new Error(response.message || 'Failed to generate audio');
+        }
+
+        // Store audio URL
+        setAudioUrl(response.audio_url);
+
+        return response.audio_url;
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to generate audio';
         setError(message);

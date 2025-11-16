@@ -28,8 +28,14 @@ export function Storyboard({
 
   // Check if all scenes have seed images
   useEffect(() => {
-    // HARDCODED: Always allow continuing for testing
-    setHasImages(true);
+    if (scenePlan && scenePlan.scenes) {
+      const allHaveImages = scenePlan.scenes.every(
+        scene => scene.seed_image_url && scene.seed_image_url.length > 0
+      );
+      setHasImages(allHaveImages);
+    } else {
+      setHasImages(false);
+    }
   }, [scenePlan]);
 
   return (
