@@ -279,3 +279,119 @@ class ReplicateImageService:
         prompt = ", ".join(components)
         return prompt
 
+    def build_scene_seed_prompt(
+        self,
+        scene_description: str,
+        scene_style_prompt: str,
+        mood_style_keywords: List[str],
+        mood_color_palette: List[str],
+        mood_aesthetic_direction: str
+    ) -> str:
+        """
+        Build a detailed image generation prompt for a scene seed image.
+        Combines scene-specific description with mood styling for consistency.
+
+        Args:
+            scene_description: Description of what happens in the scene
+            scene_style_prompt: Style keywords specific to this scene
+            mood_style_keywords: Style keywords from selected mood
+            mood_color_palette: Color palette from selected mood
+            mood_aesthetic_direction: Overall aesthetic from selected mood
+
+        Returns:
+            Formatted prompt string for seed image generation
+        """
+        # Build the prompt components - prioritize scene description with mood styling
+        components = []
+
+        # Start with the scene content (what to show)
+        components.append(scene_description)
+
+        # Add scene-specific style
+        components.append(f"Style: {scene_style_prompt}")
+
+        # Add mood aesthetic for consistency across all scenes
+        components.append(f"Overall aesthetic: {mood_aesthetic_direction}")
+
+        # Add mood style keywords for visual consistency
+        if mood_style_keywords:
+            style_kw = ', '.join(mood_style_keywords[:5])
+            components.append(f"Visual style: {style_kw}")
+
+        # Add color palette for consistency
+        if mood_color_palette:
+            colors = ', '.join(mood_color_palette[:4])
+            components.append(f"Color palette: {colors}")
+
+        # Add quality specifications
+        components.append("Professional cinematic frame")
+        components.append("Vertical 9:16 aspect ratio")
+        components.append("High quality, suitable for video production")
+        components.append("Clean composition")
+
+        # Keep it safe and professional
+        components.append("SFW, professional content only")
+
+        prompt = ", ".join(components)
+        return prompt
+
+    async def generate_scene_seed_images(
+        self,
+        scenes: List[Dict[str, Any]],
+        mood_style_keywords: List[str],
+        mood_color_palette: List[str],
+        mood_aesthetic_direction: str,
+        width: int = 1080,
+        height: int = 1920
+    ) -> List[Dict[str, Any]]:
+        """
+        Generate seed images for multiple scenes in parallel.
+
+        Args:
+            scenes: List of scene dictionaries with description and style_prompt
+            mood_style_keywords: Style keywords from selected mood
+            mood_color_palette: Color palette from selected mood
+            mood_aesthetic_direction: Aesthetic direction from selected mood
+            width: Image width (default: 1080 for prod quality)
+            height: Image height (default: 1920 for 9:16 vertical)
+
+        Returns:
+            List of dictionaries with scene data and generated image URLs
+        """
+        # Build prompts for all scenes
+        prompts = []
+        for scene in scenes:
+            prompt = self.build_scene_seed_prompt(
+                scene_description=scene.get("description", ""),
+                scene_style_prompt=scene.get("style_prompt", ""),
+                mood_style_keywords=mood_style_keywords,
+                mood_color_palette=mood_color_palette,
+                mood_aesthetic_direction=mood_aesthetic_direction
+            )
+            prompts.append(prompt)
+
+        # Generate all images in parallel
+        print(f"Starting parallel generation of {len(prompts)} seed images at {width}x{height}...")
+        image_results = await self.generate_images_parallel(
+            prompts=prompts,
+            width=width,
+            height=height
+        )
+        print(f"Completed seed image generation: {sum(1 for r in image_results if r['success'])}/{len(image_results)} successful")
+
+        # Combine scene data with image results
+        results = []
+        for idx, (scene, image_result) in enumerate(zip(scenes, image_results)):
+            result = {
+                "scene_number": scene.get("scene_number", idx + 1),
+                "duration": scene.get("duration", 0),
+                "description": scene.get("description", ""),
+                "style_prompt": scene.get("style_prompt", ""),
+                "seed_image_url": image_result.get("image_url"),
+                "generation_success": image_result.get("success", False),
+                "generation_error": image_result.get("error")
+            }
+            results.append(result)
+
+        return results
+

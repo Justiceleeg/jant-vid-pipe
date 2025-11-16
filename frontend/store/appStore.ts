@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { CreativeBrief } from '@/types/chat.types';
 import type { Mood } from '@/types/mood.types';
+import type { ScenePlan } from '@/types/scene.types';
 
 /**
  * Global application state store using Zustand.
@@ -23,8 +24,8 @@ interface AppState {
   selectMood: (moodId: string) => void;
 
   // Step 3: Scenes
-  scenePlan: any | null; // Will be properly typed in Task 4
-  setScenePlan: (plan: any) => void;
+  scenePlan: ScenePlan | null;
+  setScenePlan: (plan: ScenePlan | null) => void;
 
   // Step 4: Video Clips
   generatedClips: any[]; // Will be properly typed in Task 5

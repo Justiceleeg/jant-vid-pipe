@@ -63,3 +63,33 @@ class ScenePlanError(BaseModel):
     success: bool = Field(False, description="Always false for errors")
     error: str = Field(..., description="Error message")
     details: Optional[str] = Field(None, description="Additional error details")
+
+
+# Seed Image Generation Models
+
+class SceneWithSeedImage(BaseModel):
+    """Model for a scene with its generated seed image."""
+    scene_number: int = Field(..., description="Scene number in sequence (1-indexed)", ge=1)
+    duration: float = Field(..., description="Duration in seconds", gt=0)
+    description: str = Field(..., description="Description of what happens in this scene")
+    style_prompt: str = Field(..., description="Style keywords and visual direction for this scene")
+    seed_image_url: Optional[str] = Field(None, description="URL of the generated seed image")
+    generation_success: bool = Field(True, description="Whether seed image generation was successful")
+    generation_error: Optional[str] = Field(None, description="Error message if generation failed")
+
+
+class SeedImageRequest(BaseModel):
+    """Request model for generating seed images for scenes."""
+    scenes: List[Scene] = Field(..., description="List of scenes to generate seed images for")
+    mood_style_keywords: List[str] = Field(..., description="Style keywords from selected mood")
+    mood_color_palette: List[str] = Field(..., description="Color palette from selected mood")
+    mood_aesthetic_direction: str = Field(..., description="Aesthetic direction from selected mood")
+
+
+class SeedImageResponse(BaseModel):
+    """Response model for seed image generation."""
+    success: bool = Field(..., description="Whether generation was successful")
+    scenes_with_images: List[SceneWithSeedImage] = Field(..., description="Scenes with generated seed images")
+    message: Optional[str] = Field(None, description="Optional message about the generation")
+    total_scenes: int = Field(..., description="Total number of scenes")
+    successful_images: int = Field(..., description="Number of successfully generated images")

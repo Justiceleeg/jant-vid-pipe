@@ -5,14 +5,34 @@ from app.models.scene_models import (
     ScenePlanRequest,
     ScenePlanResponse,
     ScenePlan,
-    ScenePlanError
+    ScenePlanError,
+    SeedImageRequest,
+    SeedImageResponse,
+    SceneWithSeedImage
 )
 from app.services.scene_service import SceneGenerationService
+from app.services.replicate_service import ReplicateImageService
+from app.config import settings
 
 router = APIRouter(prefix="/api/scenes", tags=["scenes"])
 
-# Initialize service
+# Initialize services
 scene_service = SceneGenerationService()
+replicate_service = None  # Will be initialized on first request
+
+
+def get_replicate_service() -> ReplicateImageService:
+    """Get or initialize Replicate service."""
+    global replicate_service
+    if replicate_service is None:
+        try:
+            replicate_service = ReplicateImageService()
+        except ValueError as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Replicate service not available: {str(e)}"
+            )
+    return replicate_service
 
 
 @router.post("/plan", response_model=ScenePlanResponse)
@@ -82,4 +102,88 @@ async def plan_scenes(
         raise HTTPException(
             status_code=500,
             detail=f"Unexpected error during scene planning: {str(e)}"
+        )
+
+
+@router.post("/seeds", response_model=SeedImageResponse)
+async def generate_seed_images(
+    request: SeedImageRequest
+) -> SeedImageResponse:
+    """
+    Generate seed images for each scene using Replicate.
+
+    This endpoint:
+    1. Takes scene descriptions and mood style data
+    2. Generates seed images in parallel for each scene
+    3. Ensures images match the selected mood aesthetic
+    4. Returns scenes with seed image URLs
+
+    Args:
+        request: Seed image request containing scenes and mood data
+
+    Returns:
+        SeedImageResponse with scenes including seed image URLs
+
+    """
+    try:
+        # Get replicate service
+        replicate_svc = get_replicate_service()
+
+        # Convert scenes to dictionaries for service
+        scenes_list = [scene.model_dump() for scene in request.scenes]
+
+        # Determine image resolution based on environment
+        if settings.IMAGE_WIDTH > 0 and settings.IMAGE_HEIGHT > 0:
+            image_width = settings.IMAGE_WIDTH
+            image_height = settings.IMAGE_HEIGHT
+        elif settings.is_development():
+            # Dev: Lower resolution for faster generation
+            image_width = 640
+            image_height = 1136
+        else:
+            # Prod: Full HD vertical
+            image_width = 1080
+            image_height = 1920
+
+        # Generate seed images for all scenes in parallel
+        print(f"Generating {len(scenes_list)} seed images at {image_width}x{image_height}...")
+        scenes_with_images_data = await replicate_svc.generate_scene_seed_images(
+            scenes=scenes_list,
+            mood_style_keywords=request.mood_style_keywords,
+            mood_color_palette=request.mood_color_palette,
+            mood_aesthetic_direction=request.mood_aesthetic_direction,
+            width=image_width,
+            height=image_height
+        )
+
+        # Convert to Pydantic models
+        scenes_with_images = [
+            SceneWithSeedImage(**scene_data)
+            for scene_data in scenes_with_images_data
+        ]
+
+        # Count successful generations
+        total_scenes = len(scenes_with_images)
+        successful_images = sum(1 for scene in scenes_with_images if scene.generation_success)
+
+        message = f"Generated seed images for {successful_images}/{total_scenes} scenes"
+        if successful_images < total_scenes:
+            message += f" ({total_scenes - successful_images} failed or filtered)"
+
+        return SeedImageResponse(
+            success=successful_images > 0,
+            scenes_with_images=scenes_with_images,
+            message=message,
+            total_scenes=total_scenes,
+            successful_images=successful_images
+        )
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unexpected error during seed image generation: {str(e)}"
         )
