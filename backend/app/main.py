@@ -2,7 +2,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
-from app.routers import moods, scenes, video
+from app.routers import moods, scenes, video, audio, composition
 
 # Create FastAPI app
 app = FastAPI(
@@ -24,6 +24,8 @@ app.add_middleware(
 app.include_router(moods.router)
 app.include_router(scenes.router)
 app.include_router(video.router)
+app.include_router(audio.router)
+app.include_router(composition.router)
 
 
 @app.get("/")

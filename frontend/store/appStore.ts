@@ -28,14 +28,22 @@ interface AppState {
   setScenePlan: (plan: ScenePlan | null) => void;
 
   // Step 4: Video Clips
-  generatedClips: any[]; // Will be properly typed in Task 5
+  videoJobId: string | null;
+  generatedClips: any[];
   clipGenerationProgress: number;
+  setVideoJobId: (jobId: string | null) => void;
   setGeneratedClips: (clips: any[]) => void;
   updateClipProgress: (progress: number) => void;
 
-  // Step 5: Final Video
-  finalVideo: any | null; // Will be properly typed in Task 7
+  // Audio
+  audioUrl: string | null;
+  setAudioUrl: (url: string | null) => void;
+
+  // Step 5: Final Video Composition
+  compositionJobId: string | null;
+  finalVideo: any | null;
   compositionProgress: number;
+  setCompositionJobId: (jobId: string | null) => void;
   setFinalVideo: (video: any) => void;
   updateCompositionProgress: (progress: number) => void;
 
@@ -71,14 +79,22 @@ export const useAppStore = create<AppState>()(
       setScenePlan: (plan) => set({ scenePlan: plan }),
 
       // Step 4: Video Clips
+      videoJobId: null,
       generatedClips: [],
       clipGenerationProgress: 0,
+      setVideoJobId: (jobId) => set({ videoJobId: jobId }),
       setGeneratedClips: (clips) => set({ generatedClips: clips }),
       updateClipProgress: (progress) => set({ clipGenerationProgress: progress }),
 
-      // Step 5: Final Video
+      // Audio
+      audioUrl: null,
+      setAudioUrl: (url) => set({ audioUrl: url }),
+
+      // Step 5: Final Video Composition
+      compositionJobId: null,
       finalVideo: null,
       compositionProgress: 0,
+      setCompositionJobId: (jobId) => set({ compositionJobId: jobId }),
       setFinalVideo: (video) => set({ finalVideo: video }),
       updateCompositionProgress: (progress) => set({ compositionProgress: progress }),
 
@@ -99,8 +115,11 @@ export const useAppStore = create<AppState>()(
           moods: [],
           selectedMoodId: null,
           scenePlan: null,
+          videoJobId: null,
           generatedClips: [],
           clipGenerationProgress: 0,
+          audioUrl: null,
+          compositionJobId: null,
           finalVideo: null,
           compositionProgress: 0,
           error: null,
@@ -117,7 +136,10 @@ export const useAppStore = create<AppState>()(
         moods: state.moods,
         selectedMoodId: state.selectedMoodId,
         scenePlan: state.scenePlan,
+        videoJobId: state.videoJobId,
         generatedClips: state.generatedClips,
+        audioUrl: state.audioUrl,
+        compositionJobId: state.compositionJobId,
         finalVideo: state.finalVideo,
         // Don't persist: error, clipGenerationProgress, compositionProgress
       }),

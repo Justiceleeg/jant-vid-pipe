@@ -72,6 +72,8 @@ def _create_job(request: VideoGenerationRequest) -> str:
         failed_scenes=0,
         progress_percent=0,
         clips=clips,
+        audio_url=request.audio_url,
+        final_video_url=None,
         created_at=now,
         updated_at=now
     )

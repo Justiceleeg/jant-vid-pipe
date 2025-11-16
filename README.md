@@ -7,7 +7,7 @@ A guided, multi-step AI video generation pipeline that transforms user vision in
 ### Prerequisites
 
 - **Node.js 18+** and **pnpm** (package manager)
-- **Python 3.11+**
+- **Python 3.11, 3.12, or 3.13** (Python 3.14+ has compatibility issues with Pydantic V1 used by the `replicate` package)
 - **FFmpeg** installed on your system
   - macOS: `brew install ffmpeg`
   - Linux: `sudo apt-get install ffmpeg` (Ubuntu/Debian) or `sudo yum install ffmpeg` (RHEL/CentOS)
@@ -35,8 +35,10 @@ A guided, multi-step AI video generation pipeline that transforms user vision in
 4. **Set up the backend**
    ```bash
    cd ../backend
-   python -m venv venv
+   # Use Python 3.11, 3.12, or 3.13 (not 3.14+)
+   python3.13 -m venv venv  # Or python3.12, python3.11
    source venv/bin/activate  # On Windows: venv\Scripts\activate
+   pip install --upgrade pip
    pip install -r requirements.txt
    ```
 

@@ -26,6 +26,7 @@ class VideoGenerationRequest(BaseModel):
     scenes: List[SceneVideoInput] = Field(..., description="List of scenes with seed images to generate videos for")
     mood_style_keywords: Optional[List[str]] = Field(None, description="Style keywords from selected mood")
     mood_aesthetic_direction: Optional[str] = Field(None, description="Aesthetic direction from selected mood")
+    audio_url: Optional[str] = Field(None, description="URL of background music for the final composition")
 
 
 class VideoGenerationResponse(BaseModel):
@@ -55,6 +56,8 @@ class VideoJobStatus(BaseModel):
     failed_scenes: int = Field(0, description="Number of failed scenes")
     progress_percent: int = Field(0, description="Overall progress percentage (0-100)")
     clips: List[VideoClip] = Field(default_factory=list, description="List of video clips with their status")
+    audio_url: Optional[str] = Field(None, description="URL of background music for the final composition")
+    final_video_url: Optional[str] = Field(None, description="URL of the final composed video with audio")
     error: Optional[str] = Field(None, description="Error message if job failed")
     created_at: str = Field(..., description="Job creation timestamp (ISO format)")
     updated_at: str = Field(..., description="Last update timestamp (ISO format)")

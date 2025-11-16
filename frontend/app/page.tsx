@@ -3,6 +3,9 @@
 import { ChatInterface, CreativeBriefSummary } from '@/components/vision';
 import { MoodBoard } from '@/components/moods';
 import { Storyboard } from '@/components/scenes';
+import { VideoGeneration } from '@/components/composition/VideoGeneration';
+import { FinalComposition } from '@/components/composition/FinalComposition';
+import { StepIndicator } from '@/components/ui/StepIndicator';
 import { useVisionChat } from '@/hooks/useVisionChat';
 import { useMoodGeneration } from '@/hooks/useMoodGeneration';
 import { useScenePlanning } from '@/hooks/useScenePlanning';
@@ -136,10 +139,17 @@ export default function Home() {
   };
 
   // Render based on current step
-  if (currentStep === 1) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-black p-4">
-        <div className="w-full max-w-4xl space-y-4">
+  return (
+    <div className="min-h-screen bg-zinc-50 dark:bg-black">
+      {/* Step Indicator */}
+      <div className="sticky top-0 bg-white dark:bg-zinc-950 border-b z-10">
+        <StepIndicator currentStep={currentStep} />
+      </div>
+
+      {/* Content */}
+      {currentStep === 1 && (
+        <div className="flex min-h-[calc(100vh-120px)] items-center justify-center p-4">
+          <div className="w-full max-w-4xl space-y-4">
           {/* Creative Brief Summary */}
           {activeBrief && (
             <CreativeBriefSummary
@@ -157,15 +167,13 @@ export default function Home() {
             error={chatError}
             className="h-[calc(100vh-200px)]"
           />
+          </div>
         </div>
-      </div>
-    );
-  }
+      )}
 
-  if (currentStep === 2) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-black p-4">
-        <div className="w-full max-w-6xl space-y-4">
+      {currentStep === 2 && (
+        <div className="flex min-h-[calc(100vh-120px)] items-center justify-center p-4">
+          <div className="w-full max-w-6xl space-y-4">
           {/* Back button */}
           <button
             onClick={() => setCurrentStep(1)}
@@ -196,15 +204,13 @@ export default function Home() {
             isLoading={isMoodLoading}
             error={moodError}
           />
+          </div>
         </div>
-      </div>
-    );
-  }
+      )}
 
-  if (currentStep === 3) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-black p-4">
-        <div className="w-full max-w-7xl space-y-4">
+      {currentStep === 3 && (
+        <div className="flex min-h-[calc(100vh-120px)] items-center justify-center p-4">
+          <div className="w-full max-w-7xl space-y-4">
           {/* Back button */}
           <button
             onClick={() => setCurrentStep(2)}
@@ -233,24 +239,28 @@ export default function Home() {
             isLoading={isSceneLoading}
             error={sceneError}
           />
+          </div>
         </div>
-      </div>
-    );
-  }
+      )}
 
-  // Steps 4-5: Placeholder for now
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-black p-4">
-      <div className="w-full max-w-4xl text-center">
-        <h1 className="text-2xl font-bold mb-4">Step {currentStep}</h1>
-        <p className="text-muted-foreground">This step is coming soon.</p>
-        <button
-          onClick={() => setCurrentStep(1)}
-          className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
-        >
-          Back to Step 1
-        </button>
-      </div>
+      {currentStep === 4 && (
+        <div className="flex min-h-[calc(100vh-120px)] items-center justify-center p-4">
+          <div className="w-full max-w-6xl">
+            <VideoGeneration
+              onComplete={() => setCurrentStep(5)}
+              onBack={() => setCurrentStep(3)}
+            />
+          </div>
+        </div>
+      )}
+
+      {currentStep === 5 && (
+        <div className="flex min-h-[calc(100vh-120px)] items-center justify-center p-4">
+          <div className="w-full max-w-4xl">
+            <FinalComposition onBack={() => setCurrentStep(4)} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
