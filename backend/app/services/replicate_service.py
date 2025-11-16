@@ -538,13 +538,109 @@ class ReplicateVideoService:
 
         return results
 
+    def _categorize_error(self, error: Exception) -> tuple[str, bool]:
+        """
+        Categorize error and determine if it's retryable.
+
+        Args:
+            error: Exception that occurred
+
+        Returns:
+            Tuple of (error_category, is_retryable)
+        """
+        error_msg = str(error).lower()
+
+        # Network/timeout errors - retryable
+        if any(keyword in error_msg for keyword in ['timeout', 'connection', 'network', 'timed out']):
+            return ("network_error", True)
+
+        # Rate limit errors - retryable
+        if any(keyword in error_msg for keyword in ['rate limit', 'too many requests', '429']):
+            return ("rate_limit", True)
+
+        # Server errors - retryable
+        if any(keyword in error_msg for keyword in ['500', '502', '503', '504', 'server error']):
+            return ("server_error", True)
+
+        # Content policy violations - not retryable
+        if any(keyword in error_msg for keyword in ['nsfw', 'inappropriate', 'policy', 'violation']):
+            return ("content_policy", False)
+
+        # Invalid input - not retryable
+        if any(keyword in error_msg for keyword in ['invalid', 'bad request', '400']):
+            return ("invalid_input", False)
+
+        # Unknown error - not retryable by default
+        return ("unknown_error", False)
+
+    async def _generate_scene_video_with_retry(
+        self,
+        scene: Dict[str, Any],
+        max_retries: int = 3,
+        base_delay: float = 2.0
+    ) -> Optional[str]:
+        """
+        Generate video with exponential backoff retry logic.
+
+        Args:
+            scene: Scene dictionary with seed_image_url, duration, etc.
+            max_retries: Maximum number of retry attempts
+            base_delay: Base delay in seconds for exponential backoff
+
+        Returns:
+            Video URL or None if all attempts failed
+        """
+        scene_number = scene.get("scene_number", 0)
+        seed_image_url = scene.get("seed_image_url")
+        duration = scene.get("duration", 4.0)
+
+        last_error = None
+
+        for attempt in range(max_retries + 1):
+            try:
+                print(f"Scene {scene_number}: Attempt {attempt + 1}/{max_retries + 1}")
+
+                video_url = await self.generate_video_from_image(
+                    image_url=seed_image_url,
+                    duration_seconds=duration
+                )
+
+                if video_url:
+                    if attempt > 0:
+                        print(f"✓ Scene {scene_number}: Succeeded after {attempt} retries")
+                    return video_url
+
+                # No URL returned
+                last_error = Exception("Video generation returned no output")
+
+            except Exception as e:
+                last_error = e
+                error_category, is_retryable = self._categorize_error(e)
+
+                print(f"✗ Scene {scene_number}: {error_category} - {str(e)}")
+
+                # If not retryable or last attempt, fail immediately
+                if not is_retryable or attempt == max_retries:
+                    print(f"✗ Scene {scene_number}: Not retrying ({error_category})")
+                    break
+
+                # Calculate exponential backoff delay
+                delay = base_delay * (2 ** attempt)
+                print(f"⏳ Scene {scene_number}: Retrying in {delay:.1f}s...")
+                await asyncio.sleep(delay)
+
+        # All attempts failed
+        error_msg = str(last_error) if last_error else "Unknown error"
+        print(f"✗ Scene {scene_number}: Failed after {max_retries + 1} attempts: {error_msg}")
+        return None
+
     async def _generate_scene_video_safe(
         self,
         scene: Dict[str, Any],
         progress_callback: Optional[callable] = None
     ) -> Dict[str, Any]:
         """
-        Safely generate a video for a single scene with error handling.
+        Safely generate a video for a single scene with comprehensive error handling.
 
         Args:
             scene: Scene dictionary with seed_image_url, duration, scene_number, etc.
@@ -554,7 +650,6 @@ class ReplicateVideoService:
             Dictionary with generation results
         """
         scene_number = scene.get("scene_number", 0)
-        seed_image_url = scene.get("seed_image_url")
         duration = scene.get("duration", 4.0)
 
         try:
@@ -562,11 +657,8 @@ class ReplicateVideoService:
             if progress_callback:
                 await progress_callback(scene_number, "processing", None, None)
 
-            # Generate video
-            video_url = await self.generate_video_from_image(
-                image_url=seed_image_url,
-                duration_seconds=duration
-            )
+            # Generate video with retry logic
+            video_url = await self._generate_scene_video_with_retry(scene, max_retries=2)
 
             if video_url:
                 # Success
@@ -581,8 +673,8 @@ class ReplicateVideoService:
                     "error": None
                 }
             else:
-                # Generation returned None
-                error_msg = "Video generation returned no output"
+                # All retries failed
+                error_msg = "Video generation failed after multiple attempts"
                 if progress_callback:
                     await progress_callback(scene_number, "failed", None, error_msg)
 
@@ -595,9 +687,9 @@ class ReplicateVideoService:
                 }
 
         except Exception as e:
-            # Unexpected error
-            error_msg = str(e)
-            print(f"Error generating video for scene {scene_number}: {error_msg}")
+            # Unexpected error in the wrapper itself
+            error_msg = f"Unexpected error: {str(e)}"
+            print(f"✗ Scene {scene_number}: {error_msg}")
 
             if progress_callback:
                 await progress_callback(scene_number, "failed", None, error_msg)
