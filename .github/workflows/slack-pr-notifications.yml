@@ -9,14 +9,29 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
     steps:
-      - name: Notify Slack on PR Opened
+      - name: Prepare PR Opened Payload
         if: github.event.action == 'opened'
-        uses: slackapi/slack-github-action@v1.27.0
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-        with:
-          payload: |
-            {
+        id: pr-opened
+        run: |
+          PR_TITLE=$(echo '${{ toJson(github.event.pull_request.title) }}' | sed 's/^"//;s/"$//')
+          PR_BODY=$(echo '${{ toJson(github.event.pull_request.body || 'No description provided') }}' | sed 's/^"//;s/"$//')
+          PR_AUTHOR='${{ github.event.pull_request.user.login }}'
+          PR_URL='${{ github.event.pull_request.html_url }}'
+          BASE_REF='${{ github.event.pull_request.base.ref }}'
+          HEAD_REF='${{ github.event.pull_request.head.ref }}'
+          ADDITIONS='${{ github.event.pull_request.additions }}'
+          DELETIONS='${{ github.event.pull_request.deletions }}'
+          
+          PAYLOAD=$(jq -n \
+            --arg title "$PR_TITLE" \
+            --arg body "$PR_BODY" \
+            --arg author "$PR_AUTHOR" \
+            --arg url "$PR_URL" \
+            --arg base "$BASE_REF" \
+            --arg head "$HEAD_REF" \
+            --arg additions "$ADDITIONS" \
+            --arg deletions "$DELETIONS" \
+            '{
               "text": "🔵 New Pull Request",
               "blocks": [
                 {
@@ -31,15 +46,15 @@ jobs:
                   "fields": [
                     {
                       "type": "mrkdwn",
-                      "text": "*Author:*\n${{ github.event.pull_request.user.login }}"
+                      "text": "*Author:*\n\($author)"
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*Title:*\n<${{ github.event.pull_request.html_url }}|${{ github.event.pull_request.title }}>"
+                      "text": "*Title:*\n<\($url)|\($title)>"
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*Base → Head:*\n`${{ github.event.pull_request.base.ref }}` → `${{ github.event.pull_request.head.ref }}`"
+                      "text": "*Base → Head:*\n`\($base)` → `\($head)`"
                     }
                   ]
                 },
@@ -47,7 +62,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "*Description:*\n${{ github.event.pull_request.body || 'No description provided' }}"
+                    "text": "*Description:*\n\($body)"
                   }
                 },
                 {
@@ -55,7 +70,7 @@ jobs:
                   "elements": [
                     {
                       "type": "mrkdwn",
-                      "text": "📊 *${{ github.event.pull_request.additions }}* additions, *${{ github.event.pull_request.deletions }}* deletions"
+                      "text": "📊 *\($additions)* additions, *\($deletions)* deletions"
                     }
                   ]
                 },
@@ -68,21 +83,55 @@ jobs:
                         "type": "plain_text",
                         "text": "View PR"
                       },
-                      "url": "${{ github.event.pull_request.html_url }}"
+                      "url": $url
                     }
                   ]
                 }
               ]
-            }
+            }')
+          
+          echo "payload<<EOF" >> $GITHUB_OUTPUT
+          echo "$PAYLOAD" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Notify Slack on PR Merged
-        if: github.event.action == 'closed' && github.event.pull_request.merged == true
+      - name: Notify Slack on PR Opened
+        if: github.event.action == 'opened'
         uses: slackapi/slack-github-action@v1.27.0
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         with:
-          payload: |
-            {
+          payload: ${{ steps.pr-opened.outputs.payload }}
+
+      - name: Prepare PR Merged Payload
+        if: github.event.action == 'closed' && github.event.pull_request.merged == true
+        id: pr-merged
+        run: |
+          PR_TITLE=$(echo '${{ toJson(github.event.pull_request.title) }}' | sed 's/^"//;s/"$//')
+          PR_AUTHOR='${{ github.event.pull_request.user.login }}'
+          PR_MERGED_BY='${{ github.event.pull_request.merged_by.login }}'
+          PR_URL='${{ github.event.pull_request.html_url }}'
+          BASE_REF='${{ github.event.pull_request.base.ref }}'
+          ADDITIONS='${{ github.event.pull_request.additions }}'
+          DELETIONS='${{ github.event.pull_request.deletions }}'
+          MERGE_COMMIT='${{ github.event.pull_request.merge_commit_sha }}'
+          REPO='${{ github.repository }}'
+          
+          if [ -n "$MERGE_COMMIT" ]; then
+            COMMIT_URL="https://github.com/$REPO/commit/$MERGE_COMMIT"
+          else
+            COMMIT_URL="$PR_URL"
+          fi
+          
+          PAYLOAD=$(jq -n \
+            --arg title "$PR_TITLE" \
+            --arg author "$PR_AUTHOR" \
+            --arg merged_by "$PR_MERGED_BY" \
+            --arg url "$PR_URL" \
+            --arg base "$BASE_REF" \
+            --arg additions "$ADDITIONS" \
+            --arg deletions "$DELETIONS" \
+            --arg commit_url "$COMMIT_URL" \
+            '{
               "text": "✅ Pull Request Merged",
               "blocks": [
                 {
@@ -97,15 +146,15 @@ jobs:
                   "fields": [
                     {
                       "type": "mrkdwn",
-                      "text": "*Author:*\n${{ github.event.pull_request.user.login }}"
+                      "text": "*Author:*\n\($author)"
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*Title:*\n<${{ github.event.pull_request.html_url }}|${{ github.event.pull_request.title }}>"
+                      "text": "*Title:*\n<\($url)|\($title)>"
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*Merged by:*\n${{ github.event.pull_request.merged_by.login }}"
+                      "text": "*Merged by:*\n\($merged_by)"
                     }
                   ]
                 },
@@ -114,7 +163,7 @@ jobs:
                   "elements": [
                     {
                       "type": "mrkdwn",
-                      "text": "📊 *${{ github.event.pull_request.additions }}* additions, *${{ github.event.pull_request.deletions }}* deletions • Merged into `${{ github.event.pull_request.base.ref }}`"
+                      "text": "📊 *\($additions)* additions, *\($deletions)* deletions • Merged into `\($base)`"
                     }
                   ]
                 },
@@ -127,7 +176,7 @@ jobs:
                         "type": "plain_text",
                         "text": "View PR"
                       },
-                      "url": "${{ github.event.pull_request.html_url }}"
+                      "url": $url
                     },
                     {
                       "type": "button",
@@ -135,21 +184,38 @@ jobs:
                         "type": "plain_text",
                         "text": "View Commit"
                       },
-                      "url": "${{ github.event.pull_request.merge_commit_sha && format('https://github.com/{0}/commit/{1}', github.repository, github.event.pull_request.merge_commit_sha) || github.event.pull_request.html_url }}"
+                      "url": $commit_url
                     }
                   ]
                 }
               ]
-            }
+            }')
+          
+          echo "payload<<EOF" >> $GITHUB_OUTPUT
+          echo "$PAYLOAD" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Notify Slack on PR Closed (Not Merged)
-        if: github.event.action == 'closed' && github.event.pull_request.merged == false
+      - name: Notify Slack on PR Merged
+        if: github.event.action == 'closed' && github.event.pull_request.merged == true
         uses: slackapi/slack-github-action@v1.27.0
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         with:
-          payload: |
-            {
+          payload: ${{ steps.pr-merged.outputs.payload }}
+
+      - name: Prepare PR Closed Payload
+        if: github.event.action == 'closed' && github.event.pull_request.merged == false
+        id: pr-closed
+        run: |
+          PR_TITLE=$(echo '${{ toJson(github.event.pull_request.title) }}' | sed 's/^"//;s/"$//')
+          PR_AUTHOR='${{ github.event.pull_request.user.login }}'
+          PR_URL='${{ github.event.pull_request.html_url }}'
+          
+          PAYLOAD=$(jq -n \
+            --arg title "$PR_TITLE" \
+            --arg author "$PR_AUTHOR" \
+            --arg url "$PR_URL" \
+            '{
               "text": "❌ Pull Request Closed",
               "blocks": [
                 {
@@ -164,11 +230,11 @@ jobs:
                   "fields": [
                     {
                       "type": "mrkdwn",
-                      "text": "*Author:*\n${{ github.event.pull_request.user.login }}"
+                      "text": "*Author:*\n\($author)"
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*Title:*\n<${{ github.event.pull_request.html_url }}|${{ github.event.pull_request.title }}>"
+                      "text": "*Title:*\n<\($url)|\($title)>"
                     }
                   ]
                 },
@@ -181,10 +247,21 @@ jobs:
                         "type": "plain_text",
                         "text": "View PR"
                       },
-                      "url": "${{ github.event.pull_request.html_url }}"
+                      "url": $url
                     }
                   ]
                 }
               ]
-            }
+            }')
+          
+          echo "payload<<EOF" >> $GITHUB_OUTPUT
+          echo "$PAYLOAD" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
+      - name: Notify Slack on PR Closed (Not Merged)
+        if: github.event.action == 'closed' && github.event.pull_request.merged == false
+        uses: slackapi/slack-github-action@v1.27.0
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        with:
+          payload: ${{ steps.pr-closed.outputs.payload }}
