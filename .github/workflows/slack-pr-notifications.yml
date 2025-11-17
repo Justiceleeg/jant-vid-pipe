@@ -1,0 +1,189 @@
+name: Slack PR Notifications
+
+on:
+  pull_request:
+    types: [opened, closed, reopened, synchronize]
+  pull_request_target:
+    types: [closed]
+
+jobs:
+  notify-slack:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    steps:
+      - name: Notify Slack on PR Opened
+        if: github.event.action == 'opened'
+        uses: slackapi/slack-github-action@v1.27.0
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          payload: |
+            {
+              "text": "🔵 New Pull Request",
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "🔵 New Pull Request"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Author:*\n${{ github.event.pull_request.user.login }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Title:*\n<${{ github.event.pull_request.html_url }}|${{ github.event.pull_request.title }}>"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Base → Head:*\n`${{ github.event.pull_request.base.ref }}` → `${{ github.event.pull_request.head.ref }}`"
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Description:*\n${{ github.event.pull_request.body || 'No description provided' }}"
+                  }
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "📊 *${{ github.event.pull_request.additions }}* additions, *${{ github.event.pull_request.deletions }}* deletions"
+                    }
+                  ]
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "View PR"
+                      },
+                      "url": "${{ github.event.pull_request.html_url }}"
+                    }
+                  ]
+                }
+              ]
+            }
+
+      - name: Notify Slack on PR Merged
+        if: github.event.action == 'closed' && github.event.pull_request.merged == true
+        uses: slackapi/slack-github-action@v1.27.0
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          payload: |
+            {
+              "text": "✅ Pull Request Merged",
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "✅ Pull Request Merged"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Author:*\n${{ github.event.pull_request.user.login }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Title:*\n<${{ github.event.pull_request.html_url }}|${{ github.event.pull_request.title }}>"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Merged by:*\n${{ github.event.pull_request.merged_by.login }}"
+                    }
+                  ]
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "📊 *${{ github.event.pull_request.additions }}* additions, *${{ github.event.pull_request.deletions }}* deletions • Merged into `${{ github.event.pull_request.base.ref }}`"
+                    }
+                  ]
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "View PR"
+                      },
+                      "url": "${{ github.event.pull_request.html_url }}"
+                    },
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "View Commit"
+                      },
+                      "url": "${{ github.event.pull_request.merge_commit_sha && format('https://github.com/{0}/commit/{1}', github.repository, github.event.pull_request.merge_commit_sha) || github.event.pull_request.html_url }}"
+                    }
+                  ]
+                }
+              ]
+            }
+
+      - name: Notify Slack on PR Closed (Not Merged)
+        if: github.event.action == 'closed' && github.event.pull_request.merged == false
+        uses: slackapi/slack-github-action@v1.27.0
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          payload: |
+            {
+              "text": "❌ Pull Request Closed",
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "❌ Pull Request Closed"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Author:*\n${{ github.event.pull_request.user.login }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Title:*\n<${{ github.event.pull_request.html_url }}|${{ github.event.pull_request.title }}>"
+                    }
+                  ]
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "View PR"
+                      },
+                      "url": "${{ github.event.pull_request.html_url }}"
+                    }
+                  ]
+                }
+              ]
+            }
+
