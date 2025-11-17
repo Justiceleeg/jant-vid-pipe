@@ -196,6 +196,17 @@ async def _process_video_generation(job_id: str, request: VideoGenerationRequest
             for scene in request.scenes
         ]
 
+        # Log what's being sent to video generation
+        print(f"\n{'='*80}")
+        print(f"🎥 PREPARING VIDEO GENERATION FOR {len(scenes_data)} SCENES")
+        print(f"{'='*80}")
+        for scene_data in scenes_data:
+            print(f"Scene {scene_data['scene_number']}:")
+            print(f"   Description: '{scene_data['description']}'")
+            print(f"   Seed image URL: {scene_data['seed_image_url'][:80] if scene_data['seed_image_url'] else 'MISSING'}...")
+            print(f"   Duration: {scene_data['duration']}s")
+        print(f"{'='*80}\n")
+
         # Create progress callback
         async def progress_callback(scene_number: int, status: str, video_url: str = None, error: str = None):
             await _update_clip_progress(job_id, scene_number, status, video_url, error)

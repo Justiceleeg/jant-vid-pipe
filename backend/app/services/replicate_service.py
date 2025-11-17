@@ -145,6 +145,12 @@ class ReplicateImageService:
                 - success: Boolean indicating success
                 - error: Error message if failed
         """
+        # Log all prompts being sent to Replicate
+        print(f"\n📤 Sending {len(prompts)} prompts to Replicate for image generation:")
+        for idx, prompt in enumerate(prompts):
+            print(f"   Prompt {idx + 1}: '{prompt[:150]}{'...' if len(prompt) > 150 else ''}'")
+        print()
+        
         # Create tasks for parallel execution
         tasks = [
             self._generate_single_image_safe(prompt, width, height, model)
@@ -198,6 +204,10 @@ class ReplicateImageService:
         model: Optional[str]
     ) -> Optional[List[str]]:
         """Safely generate a single image with error handling and timeout."""
+        model_id = model or self.default_model
+        print(f"🖼️  Generating image with model '{model_id}' at {width}x{height}")
+        print(f"   Prompt: '{prompt[:100]}{'...' if len(prompt) > 100 else ''}'")
+        
         try:
             # Adjust timeout based on environment and resolution
             # Dev: Lower resolution + fewer steps = shorter timeout
@@ -207,18 +217,23 @@ class ReplicateImageService:
             else:
                 timeout = 90  # Prod: SDXL at 1080x1920 with 50 steps can take 30-60s
             
-            return await self.generate_image(prompt, width, height, 1, model, timeout=timeout)
+            result = await self.generate_image(prompt, width, height, 1, model, timeout=timeout)
+            if result:
+                print(f"   ✓ Image generated successfully: {result[0][:80]}...")
+            else:
+                print(f"   ✗ Image generation returned None")
+            return result
         except asyncio.TimeoutError:
-            print(f"Timeout generating image for prompt '{prompt[:50]}...'")
+            print(f"   ✗ Timeout generating image for prompt '{prompt[:50]}...'")
             return None
         except Exception as e:
             # Log error but don't raise - let caller handle it
             error_msg = str(e)
             # Don't log full NSFW error messages, just note the issue
             if "NSFW" in error_msg.upper():
-                print(f"Content filter triggered for prompt '{prompt[:50]}...'")
+                print(f"   ✗ Content filter triggered for prompt '{prompt[:50]}...'")
             else:
-                print(f"Error generating image for prompt '{prompt[:50]}...': {error_msg}")
+                print(f"   ✗ Error generating image: {error_msg}")
             return None
     
     def build_image_prompt(
@@ -301,6 +316,29 @@ class ReplicateImageService:
         Returns:
             Formatted prompt string for seed image generation
         """
+        # VALIDATION: Check for empty or invalid inputs
+        if not scene_description or not scene_description.strip():
+            print("⚠️  WARNING: Empty or missing scene_description detected!")
+            print(f"   scene_description: '{scene_description}'")
+            print(f"   scene_style_prompt: '{scene_style_prompt}'")
+            scene_description = "Professional product photography scene"
+        
+        if not scene_style_prompt or not scene_style_prompt.strip():
+            print("⚠️  WARNING: Empty or missing scene_style_prompt detected!")
+            scene_style_prompt = "professional, cinematic"
+        
+        if not mood_aesthetic_direction or not mood_aesthetic_direction.strip():
+            print("⚠️  WARNING: Empty or missing mood_aesthetic_direction detected!")
+            mood_aesthetic_direction = "modern, professional"
+        
+        # Log input values for debugging
+        print(f"📝 Building seed image prompt:")
+        print(f"   Scene description: '{scene_description[:100]}{'...' if len(scene_description) > 100 else ''}'")
+        print(f"   Scene style: '{scene_style_prompt}'")
+        print(f"   Mood aesthetic: '{mood_aesthetic_direction}'")
+        print(f"   Mood style keywords: {mood_style_keywords}")
+        print(f"   Mood color palette: {mood_color_palette}")
+
         # Build the prompt components - prioritize scene description with mood styling
         components = []
 
@@ -333,6 +371,10 @@ class ReplicateImageService:
         components.append("SFW, professional content only")
 
         prompt = ", ".join(components)
+        
+        # Log the final prompt being sent to Replicate
+        print(f"🎨 Final prompt ({len(prompt)} chars): '{prompt[:200]}{'...' if len(prompt) > 200 else ''}'")
+        
         return prompt
 
     async def generate_scene_seed_images(
@@ -358,9 +400,41 @@ class ReplicateImageService:
         Returns:
             List of dictionaries with scene data and generated image URLs
         """
+        # VALIDATION: Check inputs before processing
+        if not scenes:
+            raise ValueError("No scenes provided for seed image generation")
+        
+        print(f"\n{'='*80}")
+        print(f"🎬 GENERATING SEED IMAGES FOR {len(scenes)} SCENES")
+        print(f"{'='*80}")
+        print(f"Resolution: {width}x{height}")
+        print(f"Mood aesthetic: {mood_aesthetic_direction}")
+        print(f"Mood style keywords: {mood_style_keywords}")
+        print(f"Mood color palette: {mood_color_palette}")
+        print(f"{'='*80}\n")
+        
+        # Validate each scene before building prompts
+        for idx, scene in enumerate(scenes):
+            scene_num = scene.get("scene_number", idx + 1)
+            description = scene.get("description", "")
+            style_prompt = scene.get("style_prompt", "")
+            
+            print(f"📋 Scene {scene_num} validation:")
+            print(f"   Description: '{description[:80]}{'...' if len(description) > 80 else ''}'")
+            print(f"   Style prompt: '{style_prompt}'")
+            
+            if not description or not description.strip():
+                print(f"   ⚠️  WARNING: Scene {scene_num} has empty description!")
+            if not style_prompt or not style_prompt.strip():
+                print(f"   ⚠️  WARNING: Scene {scene_num} has empty style_prompt!")
+        
+        print()
+        
         # Build prompts for all scenes
         prompts = []
-        for scene in scenes:
+        for idx, scene in enumerate(scenes):
+            scene_num = scene.get("scene_number", idx + 1)
+            print(f"\n🔨 Building prompt for Scene {scene_num}:")
             prompt = self.build_scene_seed_prompt(
                 scene_description=scene.get("description", ""),
                 scene_style_prompt=scene.get("style_prompt", ""),
@@ -369,15 +443,33 @@ class ReplicateImageService:
                 mood_aesthetic_direction=mood_aesthetic_direction
             )
             prompts.append(prompt)
+            print(f"   ✓ Prompt built for Scene {scene_num}\n")
 
         # Generate all images in parallel
-        print(f"Starting parallel generation of {len(prompts)} seed images at {width}x{height}...")
+        print(f"\n{'='*80}")
+        print(f"🚀 Starting parallel generation of {len(prompts)} seed images at {width}x{height}...")
+        print(f"{'='*80}\n")
+        
         image_results = await self.generate_images_parallel(
             prompts=prompts,
             width=width,
             height=height
         )
-        print(f"Completed seed image generation: {sum(1 for r in image_results if r['success'])}/{len(image_results)} successful")
+        
+        successful = sum(1 for r in image_results if r['success'])
+        print(f"\n{'='*80}")
+        print(f"✅ Completed seed image generation: {successful}/{len(image_results)} successful")
+        print(f"{'='*80}\n")
+        
+        # Log results for each scene
+        for idx, (scene, result) in enumerate(zip(scenes, image_results)):
+            scene_num = scene.get("scene_number", idx + 1)
+            if result.get("success"):
+                print(f"   ✓ Scene {scene_num}: Generated successfully")
+                print(f"     URL: {result.get('image_url', 'N/A')[:80]}...")
+            else:
+                print(f"   ✗ Scene {scene_num}: Failed - {result.get('error', 'Unknown error')}")
+        print()
 
         # Combine scene data with image results
         results = []
@@ -399,12 +491,14 @@ class ReplicateImageService:
 class ReplicateVideoService:
     """Service for generating videos using Replicate API img2vid models."""
 
-    # Production model: MiniMax Video-01-Director (high quality, supports 6s clips)
-    # Professional grade video generation from images
-    PRODUCTION_VIDEO_MODEL = "minimax/video-01-director"
+    # Production model: ByteDance Seedance 1 Pro Fast (high quality, supports prompts)
+    # Fast, high-quality video generation with prompt support for scene descriptions
+    PRODUCTION_VIDEO_MODEL = "bytedance/seedance-1-pro-fast"
 
-    # Development model: Zeroscope v2 XL (faster, cheaper for dev)
-    DEVELOPMENT_VIDEO_MODEL = "anotherjesse/zeroscope-v2-xl:9f747673945c62801b13b84701c783929c0ee784e4748ec062204894dda1a351"
+    # Development model: Same as production (Seedance supports prompts)
+    # Using Seedance in both dev and prod because it supports prompts
+    # This ensures scene descriptions are actually used in video generation
+    DEVELOPMENT_VIDEO_MODEL = "bytedance/seedance-1-pro-fast"
 
     def __init__(self):
         """Initialize the Replicate video service with API token."""
@@ -416,10 +510,14 @@ class ReplicateVideoService:
         self.client = replicate.Client(api_token=token)
 
         # Determine which model to use based on environment
+        # Using MiniMax in both dev and prod because it supports prompts
+        # Zeroscope doesn't accept prompts, so scene descriptions would be ignored
         if settings.is_development():
             self.default_model = self.DEVELOPMENT_VIDEO_MODEL
         else:
             self.default_model = self.PRODUCTION_VIDEO_MODEL
+        
+        print(f"🎬 Video model initialized: {self.default_model}")
 
     async def generate_video_from_image(
         self,
@@ -429,32 +527,74 @@ class ReplicateVideoService:
         motion_bucket_id: int = 127,
         cond_aug: float = 0.02,
         model: Optional[str] = None,
-        timeout: int = 300  # 5 minute timeout for video generation
+        timeout: int = 300,  # 5 minute timeout for video generation
+        prompt: Optional[str] = None  # Optional prompt describing the scene (for Seedance/MiniMax models)
     ) -> Optional[str]:
         """
         Generate a video from a seed image using Replicate's img2vid model.
 
         Args:
             image_url: URL of the seed image
-            duration_seconds: Target duration in seconds (3-10 seconds supported)
-            fps: Frames per second (default: 8 for Zeroscope)
-            motion_bucket_id: Amount of motion (unused for Zeroscope, kept for compatibility)
-            cond_aug: Conditioning augmentation (unused for Zeroscope, kept for compatibility)
+            duration_seconds: Target duration in seconds (2-12 seconds for Seedance, 3-10 for others)
+            fps: Frames per second (default: 8, unused for Seedance/MiniMax)
+            motion_bucket_id: Amount of motion (unused, kept for compatibility)
+            cond_aug: Conditioning augmentation (unused, kept for compatibility)
             model: Optional model identifier (uses default if not provided)
             timeout: Timeout in seconds (default: 300)
+            prompt: Optional prompt describing the scene (used by Seedance and MiniMax, ignored by Zeroscope)
 
         Returns:
             Video URL or None if generation failed
         """
         model_id = model or self.default_model
 
+        # Add logging to show what's being sent
+        print(f"\n🎥 Generating video from seed image:")
+        print(f"   Image URL: {image_url[:80] if image_url else 'MISSING'}...")
+        print(f"   Model: {model_id}")
+        print(f"   Duration: {duration_seconds}s")
+
         # Build input parameters based on model type
-        if "minimax" in model_id.lower():
+        if "seedance" in model_id.lower():
+            # ByteDance Seedance 1 Pro Fast parameters
+            # Use scene description if provided, otherwise use generic prompt
+            video_prompt = prompt or "smooth camera movement, high quality video, cinematic"
+            
+            print(f"   Prompt: '{video_prompt[:100]}{'...' if len(video_prompt) > 100 else ''}'")
+            
+            # Seedance supports image-to-video with prompts
+            # Required parameters: image, prompt
+            # Optional parameters: duration (3-10s), resolution (480p/720p/1080p), aspect_ratio (9:16 for vertical)
+            # Clamp duration to valid range (3-10 seconds)
+            clamped_duration = min(max(int(duration_seconds), 3), 10)
+            
+            # Set resolution based on environment
+            if settings.is_development():
+                resolution = "720p"  # Faster for dev
+            else:
+                resolution = "1080p"  # Higher quality for prod
+            
+            input_params = {
+                "image": image_url,
+                "prompt": video_prompt,  # Use scene description
+                "duration": clamped_duration,  # Seedance supports 3-10 seconds
+                "resolution": resolution,  # 480p, 720p, or 1080p
+                "aspect_ratio": "9:16"  # Vertical format for social media
+            }
+            
+            print(f"   Duration: {clamped_duration}s (clamped from {duration_seconds}s)")
+            print(f"   Resolution: {resolution}")
+            print(f"   Aspect ratio: 9:16 (vertical)")
+        elif "minimax" in model_id.lower():
             # MiniMax Video-01-Director parameters
-            # Generates 6-second clips at high quality
+            # Use scene description if provided, otherwise use generic prompt
+            video_prompt = prompt or "smooth camera movement, high quality video, cinematic"
+            
+            print(f"   Prompt: '{video_prompt[:100]}{'...' if len(video_prompt) > 100 else ''}'")
+            
             input_params = {
                 "first_frame_image": image_url,
-                "prompt": "smooth camera movement, high quality video, cinematic"
+                "prompt": video_prompt  # Use scene description instead of hard-coded prompt
             }
         else:
             # Zeroscope v2 XL parameters
@@ -479,10 +619,17 @@ class ReplicateVideoService:
                 "width": 576,  # Zeroscope default width
                 "height": 1024  # 9:16 aspect ratio
             }
+            print(f"   Using Zeroscope (no prompt parameter - scene descriptions will be ignored!)")
+
+        print(f"   Input params keys: {list(input_params.keys())}")
+        if "prompt" in input_params:
+            print(f"   Input prompt: '{input_params['prompt'][:100]}{'...' if len(input_params['prompt']) > 100 else ''}'")
+        else:
+            print(f"   ⚠️  WARNING: Model doesn't support prompts - scene descriptions will be ignored!")
 
         try:
             # Run the model asynchronously with timeout
-            print(f"Generating video from image: {image_url[:50]}...")
+            print(f"   Sending request to Replicate...")
             output = await asyncio.wait_for(
                 asyncio.to_thread(
                     self.client.run,
@@ -593,7 +740,7 @@ class ReplicateVideoService:
         Generate video with exponential backoff retry logic.
 
         Args:
-            scene: Scene dictionary with seed_image_url, duration, etc.
+            scene: Scene dictionary with seed_image_url, duration, description, etc.
             max_retries: Maximum number of retry attempts
             base_delay: Base delay in seconds for exponential backoff
 
@@ -603,16 +750,23 @@ class ReplicateVideoService:
         scene_number = scene.get("scene_number", 0)
         seed_image_url = scene.get("seed_image_url")
         duration = scene.get("duration", 4.0)
+        scene_description = scene.get("description", "")  # Get scene description for prompt
+
+        print(f"\n🎬 Scene {scene_number} video generation:")
+        print(f"   Description: '{scene_description[:100]}{'...' if len(scene_description) > 100 else ''}'")
+        print(f"   Seed image: {seed_image_url[:80] if seed_image_url else 'MISSING'}...")
+        print(f"   Duration: {duration}s")
 
         last_error = None
 
         for attempt in range(max_retries + 1):
             try:
-                print(f"Scene {scene_number}: Attempt {attempt + 1}/{max_retries + 1}")
+                print(f"\nScene {scene_number}: Attempt {attempt + 1}/{max_retries + 1}")
 
                 video_url = await self.generate_video_from_image(
                     image_url=seed_image_url,
-                    duration_seconds=duration
+                    duration_seconds=duration,
+                    prompt=scene_description  # Pass scene description as prompt
                 )
 
                 if video_url:

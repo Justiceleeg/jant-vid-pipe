@@ -41,6 +41,18 @@ class SceneGenerationService:
         if not self.openai_client:
             raise ValueError("OpenAI API key not configured")
 
+        # Log input data
+        print(f"\n{'='*80}")
+        print(f"🎬 GENERATING SCENE BREAKDOWN")
+        print(f"{'='*80}")
+        print(f"Product: {creative_brief.get('product_name', 'N/A')}")
+        print(f"Target Audience: {creative_brief.get('target_audience', 'N/A')}")
+        print(f"Emotional Tones: {creative_brief.get('emotional_tone', [])}")
+        print(f"Key Messages: {creative_brief.get('key_messages', [])}")
+        print(f"Selected Mood: {selected_mood.get('mood_name', 'N/A')}")
+        print(f"Mood Aesthetic: {selected_mood.get('mood_aesthetic_direction', 'N/A')}")
+        print(f"{'='*80}\n")
+
         # Build prompt for scene generation
         prompt = self._build_scene_generation_prompt(creative_brief, selected_mood)
 
@@ -49,6 +61,14 @@ class SceneGenerationService:
 
         # Parse and validate the response
         scene_plan = self._parse_scene_response(response)
+
+        # Log generated scenes
+        print(f"\n✅ Generated {len(scene_plan['scenes'])} scenes:")
+        for scene in scene_plan["scenes"]:
+            print(f"   Scene {scene['scene_number']} ({scene['duration']}s):")
+            print(f"      Description: '{scene['description']}'")
+            print(f"      Style: '{scene['style_prompt']}'")
+        print()
 
         # Validate scene count and duration
         if not (5 <= len(scene_plan["scenes"]) <= 7):
@@ -174,6 +194,11 @@ IMPORTANT:
         import json
 
         try:
+            # Log raw response for debugging
+            print(f"📥 Raw OpenAI response ({len(response)} chars):")
+            print(f"   {response[:300]}{'...' if len(response) > 300 else ''}")
+            print()
+            
             # Parse as JSON
             data = json.loads(response)
 
@@ -192,6 +217,7 @@ IMPORTANT:
             structured_scenes = []
             for idx, scene in enumerate(scenes):
                 if not isinstance(scene, dict):
+                    print(f"⚠️  WARNING: Scene {idx + 1} is not a dictionary, skipping")
                     continue
 
                 # Ensure required fields
@@ -206,7 +232,10 @@ IMPORTANT:
                 if structured_scene["duration"] <= 0:
                     raise ValueError(f"Scene {idx + 1} has invalid duration: {structured_scene['duration']}")
                 if not structured_scene["description"]:
+                    print(f"⚠️  WARNING: Scene {idx + 1} has empty description!")
                     raise ValueError(f"Scene {idx + 1} missing description")
+                if not structured_scene["style_prompt"]:
+                    print(f"⚠️  WARNING: Scene {idx + 1} has empty style_prompt!")
 
                 structured_scenes.append(structured_scene)
 
