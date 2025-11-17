@@ -3,6 +3,7 @@ name: Slack PR Notifications
 on:
   pull_request:
     types: [opened, closed]
+    branches: [main]
 
 jobs:
   notify-slack:
