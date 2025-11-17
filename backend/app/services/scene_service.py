@@ -207,6 +207,8 @@ IMPORTANT:
                     raise ValueError(f"Scene {idx + 1} has invalid duration: {structured_scene['duration']}")
                 if not structured_scene["description"]:
                     raise ValueError(f"Scene {idx + 1} missing description")
+                if not structured_scene["style_prompt"]:
+                    raise ValueError(f"Scene {idx + 1} missing style_prompt")
 
                 structured_scenes.append(structured_scene)
 
