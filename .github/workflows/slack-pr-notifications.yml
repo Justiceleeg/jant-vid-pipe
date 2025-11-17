@@ -2,266 +2,277 @@ name: Slack PR Notifications
 
 on:
   pull_request:
-    types: [opened, closed, reopened, synchronize]
+    types: [opened, closed]
 
 jobs:
   notify-slack:
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
     if: github.event.pull_request.draft == false
     steps:
-      - name: Prepare PR Opened Payload
-        if: github.event.action == 'opened'
-        id: pr-opened
+      - name: Prepare Slack Payload
+        id: prepare-payload
         run: |
-          PR_TITLE=$(echo '${{ toJson(github.event.pull_request.title) }}' | sed 's/^"//;s/"$//')
-          PR_BODY=$(echo '${{ toJson(github.event.pull_request.body || 'No description provided') }}' | sed 's/^"//;s/"$//')
-          PR_AUTHOR='${{ github.event.pull_request.user.login }}'
-          PR_URL='${{ github.event.pull_request.html_url }}'
-          BASE_REF='${{ github.event.pull_request.base.ref }}'
-          HEAD_REF='${{ github.event.pull_request.head.ref }}'
-          ADDITIONS='${{ github.event.pull_request.additions }}'
-          DELETIONS='${{ github.event.pull_request.deletions }}'
+          set -e
           
-          PAYLOAD=$(jq -n \
-            --arg title "$PR_TITLE" \
-            --arg body "$PR_BODY" \
-            --arg author "$PR_AUTHOR" \
-            --arg url "$PR_URL" \
-            --arg base "$BASE_REF" \
-            --arg head "$HEAD_REF" \
-            --arg additions "$ADDITIONS" \
-            --arg deletions "$DELETIONS" \
-            '{
-              "text": "🔵 New Pull Request",
-              "blocks": [
-                {
-                  "type": "header",
-                  "text": {
-                    "type": "plain_text",
-                    "text": "🔵 New Pull Request"
-                  }
-                },
-                {
-                  "type": "section",
-                  "fields": [
-                    {
-                      "type": "mrkdwn",
-                      "text": "*Author:*\n\($author)"
-                    },
-                    {
-                      "type": "mrkdwn",
-                      "text": "*Title:*\n<\($url)|\($title)>"
-                    },
-                    {
-                      "type": "mrkdwn",
-                      "text": "*Base → Head:*\n`\($base)` → `\($head)`"
-                    }
-                  ]
-                },
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "*Description:*\n\($body)"
-                  }
-                },
-                {
-                  "type": "context",
-                  "elements": [
-                    {
-                      "type": "mrkdwn",
-                      "text": "📊 *\($additions)* additions, *\($deletions)* deletions"
-                    }
-                  ]
-                },
-                {
-                  "type": "actions",
-                  "elements": [
-                    {
-                      "type": "button",
-                      "text": {
-                        "type": "plain_text",
-                        "text": "View PR"
-                      },
-                      "url": $url
-                    }
-                  ]
-                }
-              ]
-            }')
+          # Extract common PR data
+          PR_TITLE=$(echo '${{ toJson(github.event.pull_request.title) }}' | jq -r .)
+          PR_AUTHOR=$(echo '${{ toJson(github.event.pull_request.user.login) }}' | jq -r .)
+          PR_URL=$(echo '${{ toJson(github.event.pull_request.html_url) }}' | jq -r .)
+          BASE_REF=$(echo '${{ toJson(github.event.pull_request.base.ref) }}' | jq -r .)
+          ADDITIONS=$(echo '${{ toJson(github.event.pull_request.additions) }}' | jq -r .)
+          DELETIONS=$(echo '${{ toJson(github.event.pull_request.deletions) }}' | jq -r .)
+          ACTION=$(echo '${{ toJson(github.event.action) }}' | jq -r .)
+          IS_MERGED=$(echo '${{ toJson(github.event.pull_request.merged) }}' | jq -r .)
           
-          echo "payload<<EOF" >> $GITHUB_OUTPUT
-          echo "$PAYLOAD" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Notify Slack on PR Opened
-        if: github.event.action == 'opened'
-        uses: slackapi/slack-github-action@v1.27.0
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-        with:
-          payload: ${{ steps.pr-opened.outputs.payload }}
-
-      - name: Prepare PR Merged Payload
-        if: github.event.action == 'closed' && github.event.pull_request.merged == true
-        id: pr-merged
-        run: |
-          PR_TITLE=$(echo '${{ toJson(github.event.pull_request.title) }}' | sed 's/^"//;s/"$//')
-          PR_AUTHOR='${{ github.event.pull_request.user.login }}'
-          PR_MERGED_BY='${{ github.event.pull_request.merged_by.login }}'
-          PR_URL='${{ github.event.pull_request.html_url }}'
-          BASE_REF='${{ github.event.pull_request.base.ref }}'
-          ADDITIONS='${{ github.event.pull_request.additions }}'
-          DELETIONS='${{ github.event.pull_request.deletions }}'
-          MERGE_COMMIT='${{ github.event.pull_request.merge_commit_sha }}'
-          REPO='${{ github.repository }}'
-          
-          if [ -n "$MERGE_COMMIT" ]; then
-            COMMIT_URL="https://github.com/$REPO/commit/$MERGE_COMMIT"
-          else
-            COMMIT_URL="$PR_URL"
+          # Validate required fields
+          if [ -z "$PR_TITLE" ] || [ -z "$PR_AUTHOR" ] || [ -z "$PR_URL" ]; then
+            echo "Error: Required PR fields are missing"
+            exit 1
           fi
           
-          PAYLOAD=$(jq -n \
-            --arg title "$PR_TITLE" \
-            --arg author "$PR_AUTHOR" \
-            --arg merged_by "$PR_MERGED_BY" \
-            --arg url "$PR_URL" \
-            --arg base "$BASE_REF" \
-            --arg additions "$ADDITIONS" \
-            --arg deletions "$DELETIONS" \
-            --arg commit_url "$COMMIT_URL" \
-            '{
-              "text": "✅ Pull Request Merged",
-              "blocks": [
-                {
-                  "type": "header",
-                  "text": {
-                    "type": "plain_text",
-                    "text": "✅ Pull Request Merged"
-                  }
-                },
-                {
-                  "type": "section",
-                  "fields": [
+          # Determine notification type
+          NOTIFICATION_TYPE=""
+          if [ "$ACTION" = "opened" ]; then
+            NOTIFICATION_TYPE="opened"
+            HEAD_REF=$(echo '${{ toJson(github.event.pull_request.head.ref) }}' | jq -r .)
+            PR_BODY=$(echo '${{ toJson(github.event.pull_request.body || 'No description provided') }}' | jq -r .)
+          elif [ "$ACTION" = "closed" ] && [ "$IS_MERGED" = "true" ]; then
+            NOTIFICATION_TYPE="merged"
+            PR_MERGED_BY_RAW='${{ toJson(github.event.pull_request.merged_by.login || '') }}'
+            PR_MERGED_BY=$(echo "$PR_MERGED_BY_RAW" | jq -r 'if . == "" or . == null then "Unknown" else . end')
+            MERGE_COMMIT=$(echo '${{ toJson(github.event.pull_request.merge_commit_sha || '') }}' | jq -r .)
+            REPO=$(echo '${{ toJson(github.repository) }}' | jq -r .)
+            if [ -n "$MERGE_COMMIT" ] && [ "$MERGE_COMMIT" != "null" ]; then
+              COMMIT_URL="https://github.com/$REPO/commit/$MERGE_COMMIT"
+            else
+              COMMIT_URL="$PR_URL"
+            fi
+          elif [ "$ACTION" = "closed" ] && [ "$IS_MERGED" = "false" ]; then
+            NOTIFICATION_TYPE="closed"
+          else
+            echo "Error: Unknown notification type for action=$ACTION, merged=$IS_MERGED"
+            exit 1
+          fi
+          
+          # Validate notification type was determined
+          if [ -z "$NOTIFICATION_TYPE" ]; then
+            echo "Error: Failed to determine notification type"
+            exit 1
+          fi
+          
+          # Build payload based on notification type
+          case "$NOTIFICATION_TYPE" in
+            "opened")
+              PAYLOAD=$(jq -n \
+                --arg title "$PR_TITLE" \
+                --arg body "$PR_BODY" \
+                --arg author "$PR_AUTHOR" \
+                --arg url "$PR_URL" \
+                --arg base "$BASE_REF" \
+                --arg head "$HEAD_REF" \
+                --arg additions "$ADDITIONS" \
+                --arg deletions "$DELETIONS" \
+                '{
+                  "text": "🔵 New Pull Request",
+                  "blocks": [
                     {
-                      "type": "mrkdwn",
-                      "text": "*Author:*\n\($author)"
-                    },
-                    {
-                      "type": "mrkdwn",
-                      "text": "*Title:*\n<\($url)|\($title)>"
-                    },
-                    {
-                      "type": "mrkdwn",
-                      "text": "*Merged by:*\n\($merged_by)"
-                    }
-                  ]
-                },
-                {
-                  "type": "context",
-                  "elements": [
-                    {
-                      "type": "mrkdwn",
-                      "text": "📊 *\($additions)* additions, *\($deletions)* deletions • Merged into `\($base)`"
-                    }
-                  ]
-                },
-                {
-                  "type": "actions",
-                  "elements": [
-                    {
-                      "type": "button",
+                      "type": "header",
                       "text": {
                         "type": "plain_text",
-                        "text": "View PR"
-                      },
-                      "url": $url
+                        "text": "🔵 New Pull Request"
+                      }
                     },
                     {
-                      "type": "button",
+                      "type": "section",
+                      "fields": [
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Author:*\n\($author)"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Title:*\n<\($url)|\($title)>"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Base → Head:*\n`\($base)` → `\($head)`"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "section",
                       "text": {
-                        "type": "plain_text",
-                        "text": "View Commit"
-                      },
-                      "url": $commit_url
+                        "type": "mrkdwn",
+                        "text": "*Description:*\n\($body)"
+                      }
+                    },
+                    {
+                      "type": "context",
+                      "elements": [
+                        {
+                          "type": "mrkdwn",
+                          "text": "📊 *\($additions)* additions, *\($deletions)* deletions"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "actions",
+                      "elements": [
+                        {
+                          "type": "button",
+                          "text": {
+                            "type": "plain_text",
+                            "text": "View PR"
+                          },
+                          "url": $url
+                        }
+                      ]
                     }
                   ]
-                }
-              ]
-            }')
+                }')
+              ;;
+            "merged")
+              PAYLOAD=$(jq -n \
+                --arg title "$PR_TITLE" \
+                --arg author "$PR_AUTHOR" \
+                --arg merged_by "$PR_MERGED_BY" \
+                --arg url "$PR_URL" \
+                --arg base "$BASE_REF" \
+                --arg additions "$ADDITIONS" \
+                --arg deletions "$DELETIONS" \
+                --arg commit_url "$COMMIT_URL" \
+                '{
+                  "text": "✅ Pull Request Merged",
+                  "blocks": [
+                    {
+                      "type": "header",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "✅ Pull Request Merged"
+                      }
+                    },
+                    {
+                      "type": "section",
+                      "fields": [
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Author:*\n\($author)"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Title:*\n<\($url)|\($title)>"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Merged by:*\n\($merged_by)"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "context",
+                      "elements": [
+                        {
+                          "type": "mrkdwn",
+                          "text": "📊 *\($additions)* additions, *\($deletions)* deletions • Merged into `\($base)`"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "actions",
+                      "elements": [
+                        {
+                          "type": "button",
+                          "text": {
+                            "type": "plain_text",
+                            "text": "View PR"
+                          },
+                          "url": $url
+                        },
+                        {
+                          "type": "button",
+                          "text": {
+                            "type": "plain_text",
+                            "text": "View Commit"
+                          },
+                          "url": $commit_url
+                        }
+                      ]
+                    }
+                  ]
+                }')
+              ;;
+            "closed")
+              PAYLOAD=$(jq -n \
+                --arg title "$PR_TITLE" \
+                --arg author "$PR_AUTHOR" \
+                --arg url "$PR_URL" \
+                '{
+                  "text": "❌ Pull Request Closed",
+                  "blocks": [
+                    {
+                      "type": "header",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "❌ Pull Request Closed"
+                      }
+                    },
+                    {
+                      "type": "section",
+                      "fields": [
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Author:*\n\($author)"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Title:*\n<\($url)|\($title)>"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "actions",
+                      "elements": [
+                        {
+                          "type": "button",
+                          "text": {
+                            "type": "plain_text",
+                            "text": "View PR"
+                          },
+                          "url": $url
+                        }
+                      ]
+                    }
+                  ]
+                }')
+              ;;
+            *)
+              echo "Error: Unknown notification type: $NOTIFICATION_TYPE"
+              exit 1
+              ;;
+          esac
+          
+          # Validate payload was created
+          if [ -z "$PAYLOAD" ]; then
+            echo "Error: Failed to create payload for notification type: $NOTIFICATION_TYPE"
+            exit 1
+          fi
+          
+          # Validate payload is valid JSON
+          if ! echo "$PAYLOAD" | jq . > /dev/null 2>&1; then
+            echo "Error: Generated payload is not valid JSON"
+            exit 1
+          fi
           
           echo "payload<<EOF" >> $GITHUB_OUTPUT
           echo "$PAYLOAD" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Notify Slack on PR Merged
-        if: github.event.action == 'closed' && github.event.pull_request.merged == true
+      - name: Notify Slack
+        if: steps.prepare-payload.outcome == 'success' && steps.prepare-payload.outputs.payload != ''
         uses: slackapi/slack-github-action@v1.27.0
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         with:
-          payload: ${{ steps.pr-merged.outputs.payload }}
-
-      - name: Prepare PR Closed Payload
-        if: github.event.action == 'closed' && github.event.pull_request.merged == false
-        id: pr-closed
-        run: |
-          PR_TITLE=$(echo '${{ toJson(github.event.pull_request.title) }}' | sed 's/^"//;s/"$//')
-          PR_AUTHOR='${{ github.event.pull_request.user.login }}'
-          PR_URL='${{ github.event.pull_request.html_url }}'
-          
-          PAYLOAD=$(jq -n \
-            --arg title "$PR_TITLE" \
-            --arg author "$PR_AUTHOR" \
-            --arg url "$PR_URL" \
-            '{
-              "text": "❌ Pull Request Closed",
-              "blocks": [
-                {
-                  "type": "header",
-                  "text": {
-                    "type": "plain_text",
-                    "text": "❌ Pull Request Closed"
-                  }
-                },
-                {
-                  "type": "section",
-                  "fields": [
-                    {
-                      "type": "mrkdwn",
-                      "text": "*Author:*\n\($author)"
-                    },
-                    {
-                      "type": "mrkdwn",
-                      "text": "*Title:*\n<\($url)|\($title)>"
-                    }
-                  ]
-                },
-                {
-                  "type": "actions",
-                  "elements": [
-                    {
-                      "type": "button",
-                      "text": {
-                        "type": "plain_text",
-                        "text": "View PR"
-                      },
-                      "url": $url
-                    }
-                  ]
-                }
-              ]
-            }')
-          
-          echo "payload<<EOF" >> $GITHUB_OUTPUT
-          echo "$PAYLOAD" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Notify Slack on PR Closed (Not Merged)
-        if: github.event.action == 'closed' && github.event.pull_request.merged == false
-        uses: slackapi/slack-github-action@v1.27.0
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-        with:
-          payload: ${{ steps.pr-closed.outputs.payload }}
+          payload: ${{ steps.prepare-payload.outputs.payload }}
