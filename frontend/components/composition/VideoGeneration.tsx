@@ -3,13 +3,11 @@
 import { useState, useEffect } from 'react';
 import { useAppStore } from '@/store/appStore';
 import { useVideoGeneration } from '@/hooks/useVideoGeneration';
-import { useAudioGeneration } from '@/hooks/useAudioGeneration';
 import { VideoGenerationProgress } from '@/components/video';
 import { Button } from '@/components/ui/button';
 import { ErrorAlert } from '@/components/ui/ErrorAlert';
 import { VideoGenerationError, ERROR_CODES } from '@/lib/errors';
 import type { VideoGenerationRequest } from '@/types/video.types';
-import type { AudioGenerationRequest } from '@/types/audio.types';
 
 interface VideoGenerationProps {
   onComplete: () => void;
@@ -48,15 +46,7 @@ export function VideoGeneration({ onComplete, onBack }: VideoGenerationProps) {
     });
   }, [videoStatus]);
 
-  const {
-    generateAudio,
-    isLoading: isAudioLoading,
-    error: audioError,
-    clearError: clearAudioError,
-  } = useAudioGeneration();
-
   const [hasStarted, setHasStarted] = useState(false);
-  const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
 
   const selectedMood = moods.find((m) => m.id === selectedMoodId);
 
@@ -98,30 +88,6 @@ export function VideoGeneration({ onComplete, onBack }: VideoGenerationProps) {
       console.log('✅ Clips saved to store');
     }
   }, [videoStatus, setGeneratedClips]);
-
-  // Auto-generate audio when component mounts (if not already generated)
-  useEffect(() => {
-    if (!audioUrl && selectedMood && creativeBrief && !isAudioLoading && !isGeneratingAudio) {
-      setIsGeneratingAudio(true);
-      handleGenerateAudio();
-    }
-  }, []);
-
-  const handleGenerateAudio = async () => {
-    if (!selectedMood || !creativeBrief) return;
-
-    const audioRequest: AudioGenerationRequest = {
-      mood_name: selectedMood.name,
-      mood_description: selectedMood.description,
-      emotional_tone: creativeBrief.emotional_tone,
-      aesthetic_direction: selectedMood.aesthetic_direction,
-      style_keywords: selectedMood.style_keywords,
-      duration: 30,
-    };
-
-    await generateAudio(audioRequest);
-    setIsGeneratingAudio(false);
-  };
 
   const handleStartGeneration = async () => {
     console.log('🎬 Starting video generation...');
@@ -260,11 +226,10 @@ export function VideoGeneration({ onComplete, onBack }: VideoGenerationProps) {
       isGenerating,
       hasExistingClips,
       audioUrl: !!audioUrl,
-      isAudioLoading,
       buttonShouldBeVisible: !hasStarted && !isGenerating && !hasExistingClips,
-      buttonShouldBeEnabled: !!audioUrl && !isAudioLoading
+      buttonShouldBeEnabled: !!audioUrl
     });
-  }, [hasStarted, isGenerating, hasExistingClips, audioUrl, isAudioLoading]);
+  }, [hasStarted, isGenerating, hasExistingClips, audioUrl]);
 
   return (
     <div className="space-y-6">
@@ -282,7 +247,7 @@ export function VideoGeneration({ onComplete, onBack }: VideoGenerationProps) {
       </div>
 
       {/* Audio Generation Status */}
-      {isAudioLoading && (
+      {!audioUrl && (
         <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
           <p className="text-sm text-blue-900 dark:text-blue-100">
             🎵 Generating background music...
@@ -290,7 +255,7 @@ export function VideoGeneration({ onComplete, onBack }: VideoGenerationProps) {
         </div>
       )}
 
-      {audioUrl && !isAudioLoading && (
+      {audioUrl && (
         <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg p-4 space-y-3">
           <div className="flex items-center gap-2">
             <span className="text-green-600 dark:text-green-400">✓</span>
@@ -322,12 +287,6 @@ export function VideoGeneration({ onComplete, onBack }: VideoGenerationProps) {
               Preview your 30-second background music
             </p>
           </div>
-        </div>
-      )}
-
-      {audioError && (
-        <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg p-4">
-          <p className="text-sm text-red-900 dark:text-red-100">{audioError}</p>
         </div>
       )}
 
@@ -390,7 +349,7 @@ export function VideoGeneration({ onComplete, onBack }: VideoGenerationProps) {
             <Button
               onClick={handleStartGeneration}
               size="lg"
-              disabled={!audioUrl || isAudioLoading}
+              disabled={!audioUrl}
             >
               {hasExistingClips ? 'Regenerate Video Clips' : 'Start Video Generation'}
             </Button>

@@ -7,9 +7,11 @@ import { SkipToContent } from '@/components/ui/SkipToContent';
 import { useVisionChat } from '@/hooks/useVisionChat';
 import { useMoodGeneration } from '@/hooks/useMoodGeneration';
 import { useScenePlanning } from '@/hooks/useScenePlanning';
+import { useAudioGeneration } from '@/hooks/useAudioGeneration';
 import { useAppStore } from '@/store/appStore';
 import type { MoodGenerationRequest } from '@/types/mood.types';
 import type { ScenePlanRequest } from '@/types/scene.types';
+import type { AudioGenerationRequest } from '@/types/audio.types';
 
 // Lazy load major components for code splitting
 import * as LazyComponents from '@/components/LazyComponents';
@@ -59,6 +61,12 @@ export default function Home() {
     clearError: clearSceneError,
   } = useScenePlanning();
 
+  // Audio Generation
+  const {
+    generateAudio,
+    isLoading: isAudioLoading,
+  } = useAudioGeneration();
+
   // Use creativeBrief from store (persisted) or from chat hook
   const activeBrief = creativeBrief || chatBrief;
 
@@ -83,6 +91,25 @@ export default function Home() {
       useAppStore.getState().selectMood(moods[0].id);
     }
   }, [moods, selectedMoodId]);
+
+  // HARDCODED: Auto-generate audio when entering step 3
+  useEffect(() => {
+    if (currentStep === 3 && !audioUrl && selectedMoodId && activeBrief && !isAudioLoading) {
+      const selectedMood = moods.find((m) => m.id === selectedMoodId);
+      if (selectedMood) {
+        console.log('🎵 Pre-generating audio for Step 4...');
+        const audioRequest: AudioGenerationRequest = {
+          mood_name: selectedMood.name,
+          mood_description: selectedMood.description,
+          emotional_tone: activeBrief.emotional_tone,
+          aesthetic_direction: selectedMood.aesthetic_direction,
+          style_keywords: selectedMood.style_keywords,
+          duration: 30,
+        };
+        generateAudio(audioRequest);
+      }
+    }
+  }, [currentStep, audioUrl, selectedMoodId, activeBrief, isAudioLoading, moods, generateAudio]);
 
   // HARDCODED: Auto-generate scene plan when entering step 3
   useEffect(() => {

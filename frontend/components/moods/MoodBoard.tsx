@@ -28,8 +28,14 @@ export function MoodBoard({
   className = '',
 }: MoodBoardProps) {
   const hasMoods = moods.length > 0;
-  // HARDCODED: Always allow continuing for testing
-  const canContinue = true;
+  
+  // Check if all moods have loaded their images
+  const allMoodsLoaded = hasMoods && moods.every(mood => 
+    mood.images.some(img => img.success && img.url)
+  );
+  
+  // Can only continue when moods are loaded, not loading, and a mood is selected
+  const canContinue = !isLoading && allMoodsLoaded && selectedMoodId !== null;
 
   return (
     <div className={`space-y-6 ${className}`}>
@@ -59,19 +65,26 @@ export function MoodBoard({
             {isLoading ? 'Generating Moods...' : 'Generate Mood Boards'}
           </Button>
         )}
-        {hasMoods && !canContinue && (
-          <p className="text-sm text-muted-foreground">
-            Please select a mood board to continue
-          </p>
-        )}
-        {canContinue && (
-          <Button
-            onClick={onContinue}
-            size="lg"
-            className="ml-auto"
-          >
-            Continue with Selected Mood
-          </Button>
+        {hasMoods && (
+          <>
+            {!canContinue && (
+              <p className="text-sm text-muted-foreground">
+                {isLoading 
+                  ? 'Loading mood boards...' 
+                  : !allMoodsLoaded 
+                  ? 'Please wait for all mood boards to load...'
+                  : 'Please select a mood board to continue'}
+              </p>
+            )}
+            <Button
+              onClick={onContinue}
+              disabled={!canContinue}
+              size="lg"
+              className="ml-auto"
+            >
+              Continue with Selected Mood
+            </Button>
+          </>
         )}
       </div>
 
