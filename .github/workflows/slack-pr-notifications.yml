@@ -14,8 +14,9 @@ jobs:
       - name: Notify Slack on PR Opened
         if: github.event.action == 'opened'
         uses: slackapi/slack-github-action@v1.27.0
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         with:
-          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
           payload: |
             {
               "text": "🔵 New Pull Request",
@@ -79,8 +80,9 @@ jobs:
       - name: Notify Slack on PR Merged
         if: github.event.action == 'closed' && github.event.pull_request.merged == true
         uses: slackapi/slack-github-action@v1.27.0
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         with:
-          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
           payload: |
             {
               "text": "✅ Pull Request Merged",
@@ -145,8 +147,9 @@ jobs:
       - name: Notify Slack on PR Closed (Not Merged)
         if: github.event.action == 'closed' && github.event.pull_request.merged == false
         uses: slackapi/slack-github-action@v1.27.0
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         with:
-          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
           payload: |
             {
               "text": "❌ Pull Request Closed",
