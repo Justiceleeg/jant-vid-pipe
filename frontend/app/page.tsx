@@ -1,18 +1,18 @@
 'use client';
 
-import { useEffect } from 'react';
-import { ChatInterface, CreativeBriefSummary } from '@/components/vision';
-import { MoodBoard } from '@/components/moods';
-import { Storyboard } from '@/components/scenes';
-import { VideoGeneration } from '@/components/composition/VideoGeneration';
-import { FinalComposition } from '@/components/composition/FinalComposition';
+import { useEffect, Suspense } from 'react';
 import { StepIndicator } from '@/components/ui/StepIndicator';
+import { LoadingFallback, StepSkeleton } from '@/components/ui/LoadingFallback';
+import { SkipToContent } from '@/components/ui/SkipToContent';
 import { useVisionChat } from '@/hooks/useVisionChat';
 import { useMoodGeneration } from '@/hooks/useMoodGeneration';
 import { useScenePlanning } from '@/hooks/useScenePlanning';
 import { useAppStore } from '@/store/appStore';
 import type { MoodGenerationRequest } from '@/types/mood.types';
 import type { ScenePlanRequest } from '@/types/scene.types';
+
+// Lazy load major components for code splitting
+import * as LazyComponents from '@/components/LazyComponents';
 
 /**
  * Main page that conditionally renders different steps based on currentStep.
@@ -206,44 +206,57 @@ export default function Home() {
 
   // Render based on current step
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-black">
-      {/* Step Indicator */}
-      <div className="sticky top-0 bg-white dark:bg-zinc-950 border-b z-10">
-        <StepIndicator currentStep={currentStep} />
-      </div>
+    <>
+      <SkipToContent />
+      <div className="min-h-screen bg-zinc-50 dark:bg-black">
+        {/* Step Indicator - Responsive */}
+        <header className="sticky top-0 bg-white/95 dark:bg-zinc-950/95 backdrop-blur-sm border-b z-50 transition-all duration-300">
+          <StepIndicator currentStep={currentStep} />
+        </header>
 
-      {/* Content */}
+        {/* Main content with semantic HTML */}
+        <main id="main-content" tabIndex={-1} className="outline-none">
+
+      {/* Content - Mobile-first responsive design */}
       {currentStep === 1 && (
-        <div className="flex min-h-[calc(100vh-120px)] items-center justify-center p-4">
-          <div className="w-full max-w-4xl space-y-4">
+        <div className="flex min-h-[calc(100vh-80px)] sm:min-h-[calc(100vh-100px)] items-center justify-center p-3 sm:p-4 md:p-6 lg:p-8 animate-fadeIn">
+          <div className="w-full max-w-7xl space-y-3 sm:space-y-4 md:space-y-6">
           {/* Creative Brief Summary */}
           {activeBrief && (
-            <CreativeBriefSummary
-              brief={activeBrief}
-              onContinue={handleContinueToMoods}
-            />
+            <div className="animate-slideUp">
+              <Suspense fallback={<LoadingFallback message="Loading summary..." />}>
+                <LazyComponents.CreativeBriefSummary
+                  brief={activeBrief}
+                  onContinue={handleContinueToMoods}
+                />
+              </Suspense>
+            </div>
           )}
 
-          {/* Chat Interface */}
-          <ChatInterface
-            messages={messages}
-            onSendMessage={onSendMessage}
-            isLoading={isChatLoading}
-            isStreaming={isStreaming}
-            error={chatError}
-            className="h-[calc(100vh-200px)]"
-          />
+          {/* Chat Interface - Responsive height */}
+          <div className="animate-slideUp animation-delay-100">
+            <Suspense fallback={<LoadingFallback message="Loading chat..." />}>
+              <LazyComponents.ChatInterface
+                messages={messages}
+                onSendMessage={onSendMessage}
+                isLoading={isChatLoading}
+                isStreaming={isStreaming}
+                error={chatError}
+                className="h-[calc(100vh-250px)] sm:h-[calc(100vh-220px)] md:h-[calc(100vh-200px)]"
+              />
+            </Suspense>
+          </div>
           </div>
         </div>
       )}
 
       {currentStep === 2 && (
-        <div className="flex min-h-[calc(100vh-120px)] items-center justify-center p-4">
-          <div className="w-full max-w-6xl space-y-4">
-          {/* Back button */}
+        <div className="flex min-h-[calc(100vh-80px)] sm:min-h-[calc(100vh-100px)] items-center justify-center p-3 sm:p-4 md:p-6 lg:p-8 animate-fadeIn">
+          <div className="w-full max-w-7xl space-y-3 sm:space-y-4 md:space-y-6">
+          {/* Back button - Responsive */}
           <button
             onClick={() => setCurrentStep(1)}
-            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-all duration-200 hover:gap-3 animate-slideUp"
           >
             <svg
               className="w-4 h-4"
@@ -261,26 +274,30 @@ export default function Home() {
             Back to Chat
           </button>
           
-          <MoodBoard
-            moods={moods}
-            selectedMoodId={selectedMoodId}
-            onSelectMood={selectMood}
-            onGenerate={handleGenerateMoods}
-            onContinue={handleContinueFromMoods}
-            isLoading={isMoodLoading}
-            error={moodError}
-          />
+          <div className="animate-slideUp animation-delay-100">
+            <Suspense fallback={<StepSkeleton />}>
+              <LazyComponents.MoodBoard
+                moods={moods}
+                selectedMoodId={selectedMoodId}
+                onSelectMood={selectMood}
+                onGenerate={handleGenerateMoods}
+                onContinue={handleContinueFromMoods}
+                isLoading={isMoodLoading}
+                error={moodError}
+              />
+            </Suspense>
+          </div>
           </div>
         </div>
       )}
 
       {currentStep === 3 && (
-        <div className="flex min-h-[calc(100vh-120px)] items-center justify-center p-4">
-          <div className="w-full max-w-7xl space-y-4">
-          {/* Back button */}
+        <div className="flex min-h-[calc(100vh-80px)] sm:min-h-[calc(100vh-100px)] items-center justify-center p-3 sm:p-4 md:p-6 lg:p-8 animate-fadeIn">
+          <div className="w-full max-w-7xl space-y-3 sm:space-y-4 md:space-y-6">
+          {/* Back button - Responsive */}
           <button
             onClick={() => setCurrentStep(2)}
-            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-all duration-200 hover:gap-3 animate-slideUp"
           >
             <svg
               className="w-4 h-4"
@@ -298,35 +315,45 @@ export default function Home() {
             Back to Moods
           </button>
 
-          <Storyboard
-            scenePlan={scenePlan || generatedScenePlan}
-            onGenerate={handleGenerateScenePlan}
-            onContinue={handleContinueFromScenes}
-            isLoading={isSceneLoading}
-            error={sceneError}
-          />
+          <div className="animate-slideUp animation-delay-100">
+            <Suspense fallback={<StepSkeleton />}>
+              <LazyComponents.Storyboard
+                scenePlan={scenePlan || generatedScenePlan}
+                onGenerate={handleGenerateScenePlan}
+                onContinue={handleContinueFromScenes}
+                isLoading={isSceneLoading}
+                error={sceneError}
+              />
+            </Suspense>
+          </div>
           </div>
         </div>
       )}
 
       {currentStep === 4 && (
-        <div className="flex min-h-[calc(100vh-120px)] items-center justify-center p-4">
-          <div className="w-full max-w-6xl">
-            <VideoGeneration
-              onComplete={() => setCurrentStep(5)}
-              onBack={() => setCurrentStep(3)}
-            />
+        <div className="flex min-h-[calc(100vh-80px)] sm:min-h-[calc(100vh-100px)] items-center justify-center p-3 sm:p-4 md:p-6 lg:p-8 animate-fadeIn">
+          <div className="w-full max-w-7xl animate-slideUp">
+            <Suspense fallback={<StepSkeleton />}>
+              <LazyComponents.VideoGeneration
+                onComplete={() => setCurrentStep(5)}
+                onBack={() => setCurrentStep(3)}
+              />
+            </Suspense>
           </div>
         </div>
       )}
 
       {currentStep === 5 && (
-        <div className="flex min-h-[calc(100vh-120px)] items-center justify-center p-4">
-          <div className="w-full max-w-4xl">
-            <FinalComposition onBack={() => setCurrentStep(4)} />
+        <div className="flex min-h-[calc(100vh-80px)] sm:min-h-[calc(100vh-100px)] items-center justify-center p-3 sm:p-4 md:p-6 lg:p-8 animate-fadeIn">
+          <div className="w-full max-w-6xl animate-slideUp">
+            <Suspense fallback={<StepSkeleton />}>
+              <LazyComponents.FinalComposition onBack={() => setCurrentStep(4)} />
+            </Suspense>
           </div>
         </div>
       )}
-    </div>
+        </main>
+      </div>
+    </>
   );
 }
