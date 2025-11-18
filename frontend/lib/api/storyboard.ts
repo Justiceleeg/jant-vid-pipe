@@ -40,7 +40,7 @@ async function apiRequest<T>(
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: response.statusText }));
+    const error = await response.json().catch(() => ({ detail: response.statusText }));
     
     // Provide helpful error messages for common status codes
     if (response.status === 404) {
@@ -49,7 +49,9 @@ async function apiRequest<T>(
       );
     }
     
-    throw new Error(error.message || `API request failed: ${response.statusText}`);
+    // FastAPI returns errors in 'detail' field
+    const errorMessage = error.detail || error.message || `API request failed: ${response.statusText}`;
+    throw new Error(errorMessage);
   }
 
   return response.json();
@@ -82,92 +84,142 @@ export async function getStoryboard(
 
 /**
  * 3. Update scene text manually
- * PATCH /api/scenes/{scene_id}/text
+ * PUT /api/storyboards/{storyboard_id}/scenes/{scene_id}/text
  */
 export async function updateSceneText(
+  storyboardId: string,
   sceneId: string,
   newText: string
 ): Promise<StoryboardScene> {
-  return apiRequest<StoryboardScene>(`/api/scenes/${sceneId}/text`, {
-    method: 'PATCH',
-    body: JSON.stringify({ new_text: newText } as SceneTextUpdateRequest),
-  });
+  const result = await apiRequest<{ success: boolean; scene: StoryboardScene; message?: string }>(
+    `/api/storyboards/${storyboardId}/scenes/${sceneId}/text`,
+    {
+      method: 'PUT',
+      body: JSON.stringify({ new_text: newText } as SceneTextUpdateRequest),
+    }
+  );
+  if (!result.scene) {
+    throw new Error('Invalid response: scene not found');
+  }
+  return result.scene;
 }
 
 /**
  * 4. Regenerate scene text with AI
- * POST /api/scenes/{scene_id}/generate-text
+ * POST /api/storyboards/{storyboard_id}/scenes/{scene_id}/text/generate
  */
 export async function generateSceneText(
+  storyboardId: string,
   sceneId: string,
   creativeBrief: any
 ): Promise<StoryboardScene> {
-  return apiRequest<StoryboardScene>(`/api/scenes/${sceneId}/generate-text`, {
-    method: 'POST',
-    body: JSON.stringify({ creative_brief: creativeBrief } as SceneTextGenerateRequest),
-  });
+  const result = await apiRequest<{ success: boolean; scene: StoryboardScene; message?: string }>(
+    `/api/storyboards/${storyboardId}/scenes/${sceneId}/text/generate`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ creative_brief: creativeBrief } as SceneTextGenerateRequest),
+    }
+  );
+  if (!result.scene) {
+    throw new Error('Invalid response: scene not found');
+  }
+  return result.scene;
 }
 
 /**
  * 5. Generate image for scene
- * POST /api/scenes/{scene_id}/generate-image
+ * POST /api/storyboards/{storyboard_id}/scenes/{scene_id}/image/generate
  */
 export async function generateSceneImage(
+  storyboardId: string,
   sceneId: string
 ): Promise<StoryboardScene> {
-  return apiRequest<StoryboardScene>(`/api/scenes/${sceneId}/generate-image`, {
-    method: 'POST',
-  });
+  console.log('[API] generateSceneImage called with storyboardId:', storyboardId, 'sceneId:', sceneId);
+  const result = await apiRequest<{ success: boolean; scene: StoryboardScene; message?: string }>(
+    `/api/storyboards/${storyboardId}/scenes/${sceneId}/image/generate`,
+    {
+      method: 'POST',
+    }
+  );
+  console.log('[API] generateSceneImage response:', result);
+  if (!result.scene) {
+    throw new Error('Invalid response: scene not found');
+  }
+  return result.scene;
 }
 
 /**
  * 6. Regenerate scene image
- * POST /api/scenes/{scene_id}/regenerate-image
+ * POST /api/storyboards/{storyboard_id}/scenes/{scene_id}/image/regenerate
  */
 export async function regenerateSceneImage(
+  storyboardId: string,
   sceneId: string
 ): Promise<StoryboardScene> {
-  return apiRequest<StoryboardScene>(`/api/scenes/${sceneId}/regenerate-image`, {
-    method: 'POST',
-  });
+  const result = await apiRequest<{ success: boolean; scene: StoryboardScene; message?: string }>(
+    `/api/storyboards/${storyboardId}/scenes/${sceneId}/image/regenerate`,
+    {
+      method: 'POST',
+    }
+  );
+  if (!result.scene) {
+    throw new Error('Invalid response: scene not found');
+  }
+  return result.scene;
 }
 
 /**
  * 7. Update scene duration
- * PATCH /api/scenes/{scene_id}/duration
+ * PUT /api/storyboards/{storyboard_id}/scenes/{scene_id}/duration
  */
 export async function updateSceneDuration(
+  storyboardId: string,
   sceneId: string,
   newDuration: number
 ): Promise<StoryboardScene> {
-  return apiRequest<StoryboardScene>(`/api/scenes/${sceneId}/duration`, {
-    method: 'PATCH',
-    body: JSON.stringify({ new_duration: newDuration } as SceneDurationUpdateRequest),
-  });
+  const result = await apiRequest<{ success: boolean; scene: StoryboardScene; message?: string }>(
+    `/api/storyboards/${storyboardId}/scenes/${sceneId}/duration`,
+    {
+      method: 'PUT',
+      body: JSON.stringify({ new_duration: newDuration } as SceneDurationUpdateRequest),
+    }
+  );
+  if (!result.scene) {
+    throw new Error('Invalid response: scene not found');
+  }
+  return result.scene;
 }
 
 /**
  * 8. Generate video for scene (async)
- * POST /api/scenes/{scene_id}/generate-video
+ * POST /api/storyboards/{storyboard_id}/scenes/{scene_id}/video/generate
  */
 export async function generateSceneVideo(
+  storyboardId: string,
   sceneId: string
 ): Promise<SceneVideoGenerateResponse> {
-  return apiRequest<SceneVideoGenerateResponse>(`/api/scenes/${sceneId}/generate-video`, {
-    method: 'POST',
-  });
+  return apiRequest<SceneVideoGenerateResponse>(
+    `/api/storyboards/${storyboardId}/scenes/${sceneId}/video/generate`,
+    {
+      method: 'POST',
+    }
+  );
 }
 
 /**
  * 9. Regenerate scene video (async)
- * POST /api/scenes/{scene_id}/regenerate-video
+ * POST /api/storyboards/{storyboard_id}/scenes/{scene_id}/video/regenerate
  */
 export async function regenerateSceneVideo(
+  storyboardId: string,
   sceneId: string
 ): Promise<SceneVideoGenerateResponse> {
-  return apiRequest<SceneVideoGenerateResponse>(`/api/scenes/${sceneId}/regenerate-video`, {
-    method: 'POST',
-  });
+  return apiRequest<SceneVideoGenerateResponse>(
+    `/api/storyboards/${storyboardId}/scenes/${sceneId}/video/regenerate`,
+    {
+      method: 'POST',
+    }
+  );
 }
 
 /**
@@ -212,12 +264,33 @@ export function createSSEConnection(
   onUpdate: (event: MessageEvent) => void,
   onError?: (error: Event) => void
 ): EventSource {
-  const eventSource = new EventSource(`${API_BASE_URL}/api/storyboards/${storyboardId}/events`);
+  const url = `${API_BASE_URL}/api/storyboards/${storyboardId}/events`;
+  console.log('[API] Creating EventSource with URL:', url);
+  const eventSource = new EventSource(url);
 
-  eventSource.addEventListener('scene_update', onUpdate);
-  eventSource.addEventListener('error', onError || ((e) => console.error('SSE error:', e)));
-  eventSource.addEventListener('complete', onUpdate);
+  console.log('[API] Adding event listeners...');
+  eventSource.addEventListener('scene_update', (event) => {
+    console.log('[API] Received scene_update event:', event);
+    onUpdate(event);
+  });
+  eventSource.addEventListener('error', (e) => {
+    console.error('[API] SSE error event:', e);
+    if (onError) onError(e);
+  });
+  eventSource.addEventListener('complete', (event) => {
+    console.log('[API] Received complete event:', event);
+    onUpdate(event);
+  });
+  eventSource.addEventListener('open', () => {
+    console.log('[API] EventSource onopen fired');
+  });
 
+  // Also listen for ALL messages for debugging
+  eventSource.onmessage = (event) => {
+    console.log('[API] Generic onmessage event:', event);
+  };
+
+  console.log('[API] EventSource created, readyState:', eventSource.readyState);
   return eventSource;
 }
 

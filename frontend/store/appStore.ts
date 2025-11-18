@@ -10,7 +10,7 @@ import type { ScenePlan } from '@/types/scene.types';
  */
 interface AppState {
   // Navigation
-  currentStep: 1 | 2 | 3 | 4 | 5;
+  currentStep: 1 | 2 | 3 | 4;
   setCurrentStep: (step: number) => void;
 
     // Step 1: Vision & Creative Brief
@@ -23,23 +23,16 @@ interface AppState {
   setMoods: (moods: Mood[]) => void;
   selectMood: (moodId: string) => void;
 
-  // Step 3: Scenes
-  scenePlan: ScenePlan | null;
-  setScenePlan: (plan: ScenePlan | null) => void;
-
-  // Step 4: Video Clips
-  videoJobId: string | null;
-  generatedClips: any[];
-  clipGenerationProgress: number;
-  setVideoJobId: (jobId: string | null) => void;
-  setGeneratedClips: (clips: any[]) => void;
-  updateClipProgress: (progress: number) => void;
+  // Step 3: Storyboard (NEW - handles text, images, and videos)
+  // Actual storyboard state is in storyboardStore, this just tracks we completed it
+  storyboardCompleted: boolean;
+  setStoryboardCompleted: (completed: boolean) => void;
 
   // Audio
   audioUrl: string | null;
   setAudioUrl: (url: string | null) => void;
 
-  // Step 5: Final Video Composition
+  // Step 4: Final Video Composition (formerly step 5)
   compositionJobId: string | null;
   finalVideo: any | null;
   compositionProgress: number;
@@ -62,7 +55,7 @@ export const useAppStore = create<AppState>()(
     (set) => ({
       // Navigation
       currentStep: 1,
-      setCurrentStep: (step) => set({ currentStep: step as 1 | 2 | 3 | 4 | 5 }),
+      setCurrentStep: (step) => set({ currentStep: step as 1 | 2 | 3 | 4 }),
 
       // Step 1: Vision
       creativeBrief: null,
@@ -74,23 +67,15 @@ export const useAppStore = create<AppState>()(
       setMoods: (moods) => set({ moods }),
       selectMood: (moodId) => set({ selectedMoodId: moodId }),
 
-      // Step 3: Scenes
-      scenePlan: null,
-      setScenePlan: (plan) => set({ scenePlan: plan }),
-
-      // Step 4: Video Clips
-      videoJobId: null,
-      generatedClips: [],
-      clipGenerationProgress: 0,
-      setVideoJobId: (jobId) => set({ videoJobId: jobId }),
-      setGeneratedClips: (clips) => set({ generatedClips: clips }),
-      updateClipProgress: (progress) => set({ clipGenerationProgress: progress }),
+      // Step 3: Storyboard (NEW)
+      storyboardCompleted: false,
+      setStoryboardCompleted: (completed) => set({ storyboardCompleted: completed }),
 
       // Audio
       audioUrl: null,
       setAudioUrl: (url) => set({ audioUrl: url }),
 
-      // Step 5: Final Video Composition
+      // Step 4: Final Video Composition
       compositionJobId: null,
       finalVideo: null,
       compositionProgress: 0,
@@ -114,10 +99,7 @@ export const useAppStore = create<AppState>()(
           creativeBrief: null,
           moods: [],
           selectedMoodId: null,
-          scenePlan: null,
-          videoJobId: null,
-          generatedClips: [],
-          clipGenerationProgress: 0,
+          storyboardCompleted: false,
           audioUrl: null,
           compositionJobId: null,
           finalVideo: null,
@@ -135,13 +117,11 @@ export const useAppStore = create<AppState>()(
         creativeBrief: state.creativeBrief,
         moods: state.moods,
         selectedMoodId: state.selectedMoodId,
-        scenePlan: state.scenePlan,
-        videoJobId: state.videoJobId,
-        generatedClips: state.generatedClips,
+        storyboardCompleted: state.storyboardCompleted,
         audioUrl: state.audioUrl,
         compositionJobId: state.compositionJobId,
         finalVideo: state.finalVideo,
-        // Don't persist: error, clipGenerationProgress, compositionProgress
+        // Don't persist: error, compositionProgress
       }),
     }
   )

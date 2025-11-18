@@ -69,6 +69,9 @@ export function SceneCardNew({
   const isGeneratingVideo = scene.generation_status.video === 'generating';
   const hasError = !!scene.error_message;
 
+  // Debug logging
+  console.log(`[SceneCard ${sceneNumber}] Render - state: ${scene.state}, video_status: ${scene.generation_status.video}, isGeneratingVideo: ${isGeneratingVideo}`);
+
   return (
     <div className="w-full max-w-4xl mx-auto bg-card border-2 border-border rounded-lg overflow-hidden shadow-lg">
       {/* Scene number badge */}
@@ -210,18 +213,27 @@ export function SceneCardNew({
 
             {/* Actions */}
             <div className="flex items-center justify-between gap-4">
-              <Button size="sm" variant="outline" onClick={onRegenerateImage} disabled={isLoading || isGeneratingImage}>
+              <Button size="sm" variant="outline" onClick={onRegenerateImage} disabled={isLoading || isGeneratingImage || isGeneratingVideo}>
                 <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
                 Regenerate Image
               </Button>
 
-              <Button onClick={onApproveImage} disabled={isLoading || isGeneratingImage} size="lg">
-                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                Approve & Generate Video
+              <Button onClick={onApproveImage} disabled={isLoading || isGeneratingImage || isGeneratingVideo} size="lg">
+                {isGeneratingVideo ? (
+                  <>
+                    <div className="w-5 h-5 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Generating Video...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Approve & Generate Video
+                  </>
+                )}
               </Button>
             </div>
           </div>

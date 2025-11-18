@@ -45,3 +45,16 @@ export interface MoodGenerationRequest {
   key_messages: string[];
 }
 
+/**
+ * Creative brief input type for API requests.
+ * Matches the backend CreativeBriefInput model structure.
+ * Note: This is compatible with CreativeBrief from chat.types.ts (which has an optional conversation_history field).
+ */
+export interface CreativeBriefInput {
+  product_name: string;
+  target_audience: string;
+  emotional_tone: string[];
+  visual_style_keywords: string[];
+  key_messages: string[];
+}
+

@@ -9,7 +9,11 @@ import { useVisionChat } from '@/hooks/useVisionChat';
 import { useMoodGeneration } from '@/hooks/useMoodGeneration';
 import { useScenePlanning } from '@/hooks/useScenePlanning';
 import { useAudioGeneration } from '@/hooks/useAudioGeneration';
+import { useStoryboard } from '@/hooks/useStoryboard';
 import { useAppStore } from '@/store/appStore';
+import { StoryboardCarousel } from '@/components/storyboard';
+import { ToastProvider, useToast } from '@/components/ui/Toast';
+import { ErrorAlert } from '@/components/ui/ErrorAlert';
 import type { MoodGenerationRequest } from '@/types/mood.types';
 import type { ScenePlanRequest } from '@/types/scene.types';
 import type { AudioGenerationRequest } from '@/types/audio.types';
@@ -20,7 +24,7 @@ import * as LazyComponents from '@/components/LazyComponents';
 /**
  * Main page that conditionally renders different steps based on currentStep.
  */
-export default function Home() {
+function HomeContent() {
   const router = useRouter();
   const {
     currentStep,
@@ -28,9 +32,8 @@ export default function Home() {
     creativeBrief,
     moods,
     selectedMoodId,
-    scenePlan,
-    setScenePlan,
     audioUrl,
+    setStoryboardCompleted,
   } = useAppStore();
 
   // Step 1: Vision Chat
@@ -68,6 +71,25 @@ export default function Home() {
     generateAudio,
     isLoading: isAudioLoading,
   } = useAudioGeneration();
+
+  // Step 3: Storyboard
+  const {
+    storyboard,
+    scenes,
+    isLoading: isStoryboardLoading,
+    isSaving,
+    isRegeneratingAll,
+    error: storyboardError,
+    initializeStoryboard,
+    regenerateAllScenes,
+    approveText,
+    regenerateText,
+    editText,
+    approveImage,
+    regenerateImage,
+    updateDuration,
+    regenerateVideo,
+  } = useStoryboard();
 
   // Use creativeBrief from store (persisted) or from chat hook
   const activeBrief = creativeBrief || chatBrief;
@@ -113,12 +135,16 @@ export default function Home() {
     }
   }, [currentStep, audioUrl, selectedMoodId, activeBrief, isAudioLoading, moods, generateAudio]);
 
-  // Redirect to unified storyboard page when step 3 is reached
+  // Auto-initialize storyboard when entering step 3
   useEffect(() => {
-    if (currentStep === 3) {
-      router.push('/storyboard');
+    if (currentStep === 3 && !storyboard && !isStoryboardLoading && activeBrief && selectedMoodId) {
+      const selectedMood = moods.find((m) => m.id === selectedMoodId);
+      if (selectedMood) {
+        console.log('[Page] Auto-initializing storyboard for step 3');
+        initializeStoryboard(activeBrief, selectedMood);
+      }
     }
-  }, [currentStep, router]);
+  }, [currentStep, storyboard, isStoryboardLoading, activeBrief, selectedMoodId, moods, initializeStoryboard]);
 
   const handleContinueToMoods = () => {
     // HARDCODED: Skip validation for testing
@@ -192,7 +218,9 @@ export default function Home() {
     }
   };
 
-  const handleContinueFromScenes = () => {
+  const handleGenerateFinalVideo = () => {
+    // Mark storyboard as completed and navigate to final composition (Step 4)
+    setStoryboardCompleted(true);
     setCurrentStep(4);
   };
 
@@ -283,37 +311,74 @@ export default function Home() {
         </div>
       )}
 
-      {/* Step 3: Storyboard - Redirects to /storyboard page */}
+      {/* Step 3: Storyboard - Embedded progressive workflow */}
       {currentStep === 3 && (
         <div className="flex min-h-[calc(100vh-80px)] sm:min-h-[calc(100vh-100px)] items-center justify-center p-3 sm:p-4 md:p-6 lg:p-8 animate-fadeIn">
           <div className="w-full max-w-7xl space-y-3 sm:space-y-4 md:space-y-6">
-            <div className="animate-slideUp animation-delay-100">
-              <Suspense fallback={<StepSkeleton />}>
-                <LoadingFallback message="Loading storyboard..." />
-              </Suspense>
-            </div>
+            {/* Back button */}
+            <button
+              onClick={() => setCurrentStep(2)}
+              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-all duration-200 hover:gap-3 animate-slideUp"
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 19l-7-7 7-7"
+                />
+              </svg>
+              Back to Moods
+            </button>
+
+            {/* Error display */}
+            {storyboardError && (
+              <div className="animate-slideUp animation-delay-100">
+                <ErrorAlert message={storyboardError} />
+              </div>
+            )}
+
+            {/* Loading state */}
+            {(isStoryboardLoading || !storyboard) && !storyboardError && (
+              <div className="animate-slideUp animation-delay-100">
+                <LoadingFallback message="Initializing storyboard..." />
+              </div>
+            )}
+
+            {/* Storyboard Carousel */}
+            {storyboard && scenes.length > 0 && (
+              <div className="animate-slideUp animation-delay-100">
+                <StoryboardCarousel
+                  storyboard={storyboard}
+                  scenes={scenes}
+                  onRegenerateAll={regenerateAllScenes}
+                  onPreviewAll={() => console.log('Preview all')}
+                  onGenerateFinalVideo={handleGenerateFinalVideo}
+                  onApproveText={approveText}
+                  onRegenerateText={regenerateText}
+                  onEditText={editText}
+                  onApproveImage={approveImage}
+                  onRegenerateImage={regenerateImage}
+                  onUpdateDuration={updateDuration}
+                  onRegenerateVideo={regenerateVideo}
+                  isLoading={isSaving || isRegeneratingAll}
+                />
+              </div>
+            )}
           </div>
         </div>
       )}
 
       {currentStep === 4 && (
         <div className="flex min-h-[calc(100vh-80px)] sm:min-h-[calc(100vh-100px)] items-center justify-center p-3 sm:p-4 md:p-6 lg:p-8 animate-fadeIn">
-          <div className="w-full max-w-7xl animate-slideUp">
-            <Suspense fallback={<StepSkeleton />}>
-              <LazyComponents.VideoGeneration
-                onComplete={() => setCurrentStep(5)}
-                onBack={() => setCurrentStep(3)}
-              />
-            </Suspense>
-          </div>
-        </div>
-      )}
-
-      {currentStep === 5 && (
-        <div className="flex min-h-[calc(100vh-80px)] sm:min-h-[calc(100vh-100px)] items-center justify-center p-3 sm:p-4 md:p-6 lg:p-8 animate-fadeIn">
           <div className="w-full max-w-6xl animate-slideUp">
             <Suspense fallback={<StepSkeleton />}>
-              <LazyComponents.FinalComposition onBack={() => setCurrentStep(4)} />
+              <LazyComponents.FinalComposition onBack={() => setCurrentStep(3)} />
             </Suspense>
           </div>
         </div>
@@ -321,5 +386,14 @@ export default function Home() {
         </main>
       </div>
     </>
+  );
+}
+
+// Wrap with ToastProvider for storyboard functionality
+export default function Home() {
+  return (
+    <ToastProvider>
+      <HomeContent />
+    </ToastProvider>
   );
 }

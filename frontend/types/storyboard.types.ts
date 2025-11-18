@@ -163,7 +163,8 @@ export type SSEEventType = 'scene_update' | 'error' | 'complete';
 export interface SSESceneUpdate {
   scene_id: string;
   state: SceneState;
-  status: GenerationStatus;
+  image_status: GenerationStatus;
+  video_status: GenerationStatus;
   progress_percent?: number;
   video_url?: string | null;
   image_url?: string | null;

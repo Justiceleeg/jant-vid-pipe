@@ -21,7 +21,7 @@ function StoryboardPageContent() {
   const storyboardId = searchParams.get('id');
 
   // App-level state for creative brief and mood
-  const { creativeBrief, moods, selectedMoodId, setCurrentStep } = useAppStore();
+  const { creativeBrief, moods, selectedMoodId, setCurrentStep, setStoryboardCompleted } = useAppStore();
 
   // Storyboard store
   const {
@@ -48,17 +48,24 @@ function StoryboardPageContent() {
 
   // Initialize or load storyboard
   useEffect(() => {
+    // Skip if already loading or if storyboard exists and matches the URL
+    if (isLoading || isRecovering) return;
+    if (storyboard && storyboardId && storyboard.storyboard_id === storyboardId) return;
+    if (storyboard && !storyboardId) return; // Already have a storyboard for new creation
+
     if (storyboardId) {
       // Load existing storyboard from URL
+      console.log('[Page] Loading storyboard from URL:', storyboardId);
       loadStoryboard(storyboardId);
     } else if (!storyboard && creativeBrief && selectedMoodId) {
       // Initialize new storyboard from creative brief and mood
       const selectedMood = moods.find((m) => m.id === selectedMoodId);
       if (selectedMood) {
+        console.log('[Page] Initializing new storyboard');
         initializeStoryboard(creativeBrief, selectedMood);
       }
     }
-  }, [storyboardId, creativeBrief, selectedMoodId]);
+  }, [storyboardId, storyboard, creativeBrief, selectedMoodId, moods, isLoading, isRecovering, loadStoryboard, initializeStoryboard]);
 
   // Handle operations with toast feedback
   const handleApproveText = async (sceneId: string) => {
@@ -205,9 +212,10 @@ function StoryboardPageContent() {
 
   // Handle generate final video
   const handleGenerateFinalVideo = () => {
-    // Navigate to final composition (Step 5)
-    setCurrentStep(5);
-    router.push('/?step=5');
+    // Mark storyboard as completed and navigate to final composition (Step 4)
+    setStoryboardCompleted(true);
+    setCurrentStep(4);
+    router.push('/?step=4');
   };
 
   // Loading state

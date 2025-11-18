@@ -69,6 +69,14 @@ export const useStoryboardStore = create<StoryboardState>()(
 
       // Initialize new storyboard
       initializeStoryboard: async (creativeBrief, selectedMood) => {
+        // Prevent duplicate initialization calls
+        const currentState = get();
+        if (currentState.isLoading || currentState.storyboard) {
+          console.log('[Store] Skipping duplicate initializeStoryboard call (already loading or storyboard exists)');
+          return;
+        }
+
+        console.log('[Store] Starting storyboard initialization');
         set({ isLoading: true, error: null });
         try {
           const response = await retryOperation(
@@ -86,6 +94,7 @@ export const useStoryboardStore = create<StoryboardState>()(
           );
 
           if (response.success) {
+            console.log('[Store] Storyboard initialized:', response.storyboard.storyboard_id);
             set({
               storyboard: response.storyboard,
               scenes: response.scenes,
@@ -190,15 +199,23 @@ export const useStoryboardStore = create<StoryboardState>()(
 
       // Approve text and generate image
       approveText: async (sceneId) => {
+        console.log('[Store] approveText called for scene:', sceneId);
         set({ isSaving: true, error: null });
         try {
+          const storyboard = get().storyboard;
+          console.log('[Store] Current storyboard:', storyboard?.storyboard_id);
+          if (!storyboard) {
+            throw new Error('No storyboard loaded');
+          }
+          console.log('[Store] Calling generateSceneImage API with storyboardId:', storyboard.storyboard_id, 'sceneId:', sceneId);
           const updatedScene = await retryOperation(
-            () => storyboardAPI.generateSceneImage(sceneId),
+            () => storyboardAPI.generateSceneImage(storyboard.storyboard_id, sceneId),
             {
               maxRetries: 2,
               operationName: 'Generate Scene Image',
             }
           );
+          console.log('[Store] generateSceneImage returned:', updatedScene);
           get().updateScene(sceneId, updatedScene);
           set({ isSaving: false });
         } catch (error) {
@@ -224,7 +241,7 @@ export const useStoryboardStore = create<StoryboardState>()(
         set({ isSaving: true, error: null });
         try {
           const updatedScene = await retryOperation(
-            () => storyboardAPI.generateSceneText(sceneId, storyboard.creative_brief),
+            () => storyboardAPI.generateSceneText(storyboard.storyboard_id, sceneId, storyboard.creative_brief),
             {
               maxRetries: 2,
               operationName: 'Regenerate Scene Text',
@@ -251,8 +268,12 @@ export const useStoryboardStore = create<StoryboardState>()(
       editText: async (sceneId, newText) => {
         set({ isSaving: true, error: null });
         try {
+          const storyboard = get().storyboard;
+          if (!storyboard) {
+            throw new Error('No storyboard loaded');
+          }
           const updatedScene = await retryOperation(
-            () => storyboardAPI.updateSceneText(sceneId, newText),
+            () => storyboardAPI.updateSceneText(storyboard.storyboard_id, sceneId, newText),
             {
               maxRetries: 2,
               operationName: 'Update Scene Text',
@@ -279,7 +300,11 @@ export const useStoryboardStore = create<StoryboardState>()(
       approveImage: async (sceneId) => {
         set({ isSaving: true, error: null });
         try {
-          await storyboardAPI.generateSceneVideo(sceneId);
+          const storyboard = get().storyboard;
+          if (!storyboard) {
+            throw new Error('No storyboard loaded');
+          }
+          await storyboardAPI.generateSceneVideo(storyboard.storyboard_id, sceneId);
           // SSE will handle the update
           set({ isSaving: false });
         } catch (error) {
@@ -294,8 +319,12 @@ export const useStoryboardStore = create<StoryboardState>()(
       regenerateImage: async (sceneId) => {
         set({ isSaving: true, error: null });
         try {
+          const storyboard = get().storyboard;
+          if (!storyboard) {
+            throw new Error('No storyboard loaded');
+          }
           const updatedScene = await retryOperation(
-            () => storyboardAPI.regenerateSceneImage(sceneId),
+            () => storyboardAPI.regenerateSceneImage(storyboard.storyboard_id, sceneId),
             {
               maxRetries: 2,
               operationName: 'Regenerate Scene Image',
@@ -322,8 +351,12 @@ export const useStoryboardStore = create<StoryboardState>()(
       updateDuration: async (sceneId, newDuration) => {
         set({ isSaving: true, error: null });
         try {
+          const storyboard = get().storyboard;
+          if (!storyboard) {
+            throw new Error('No storyboard loaded');
+          }
           const updatedScene = await retryOperation(
-            () => storyboardAPI.updateSceneDuration(sceneId, newDuration),
+            () => storyboardAPI.updateSceneDuration(storyboard.storyboard_id, sceneId, newDuration),
             {
               maxRetries: 2,
               operationName: 'Update Scene Duration',
@@ -350,7 +383,11 @@ export const useStoryboardStore = create<StoryboardState>()(
       regenerateVideo: async (sceneId) => {
         set({ isSaving: true, error: null });
         try {
-          await storyboardAPI.regenerateSceneVideo(sceneId);
+          const storyboard = get().storyboard;
+          if (!storyboard) {
+            throw new Error('No storyboard loaded');
+          }
+          await storyboardAPI.regenerateSceneVideo(storyboard.storyboard_id, sceneId);
           // SSE will handle the update
           set({ isSaving: false });
         } catch (error) {
@@ -363,27 +400,47 @@ export const useStoryboardStore = create<StoryboardState>()(
 
       // Connect SSE
       connectSSE: (storyboardId) => {
-        // Disconnect existing connection
-        get().disconnectSSE();
+        // Check if already connected to this storyboard
+        const { sseConnection, storyboard } = get();
+        if (sseConnection && storyboard?.storyboard_id === storyboardId) {
+          console.log('[SSE] Already connected to storyboard', storyboardId);
+          return;
+        }
+
+        // Disconnect existing connection if it's for a different storyboard
+        if (sseConnection) {
+          console.log('[SSE] Disconnecting from previous storyboard');
+          get().disconnectSSE();
+        }
 
         try {
+          console.log('[SSE] Connecting to storyboard', storyboardId);
           const eventSource = storyboardAPI.createSSEConnection(
             storyboardId,
-            get().handleSSEUpdate,
+            (event) => {
+              console.log('[SSE] Event received, calling handleSSEUpdate');
+              get().handleSSEUpdate(event);
+            },
             (error) => {
-              console.error('SSE connection error:', error);
+              console.error('[SSE] Connection error:', error);
               // Attempt to reconnect after 5 seconds
               setTimeout(() => {
                 if (get().storyboard?.storyboard_id === storyboardId) {
+                  console.log('[SSE] Attempting to reconnect...');
                   get().connectSSE(storyboardId);
                 }
               }, 5000);
             }
           );
 
+          eventSource.onopen = () => {
+            console.log('[SSE] Connection opened for storyboard', storyboardId);
+          };
+
           set({ sseConnection: eventSource });
+          console.log('[SSE] SSE connection established for storyboard', storyboardId);
         } catch (error) {
-          console.error('Failed to create SSE connection:', error);
+          console.error('[SSE] Failed to create SSE connection:', error);
         }
       },
 
@@ -399,21 +456,39 @@ export const useStoryboardStore = create<StoryboardState>()(
       // Handle SSE updates
       handleSSEUpdate: (event) => {
         try {
+          console.log('[SSE] Received event:', event.type, event.data);
           const data: SSESceneUpdate = JSON.parse(event.data);
-          const { scene_id, state, status, video_url, image_url, error } = data;
+          const { scene_id, state, image_status, video_status, video_url, image_url, error } = data;
+          console.log('[SSE] Parsed data:', { scene_id, state, image_status, video_status, image_url, video_url, error });
 
-          get().updateScene(scene_id, {
+          const currentScene = get().scenes.find((s) => s.id === scene_id);
+          console.log('[SSE] Current scene before update:', currentScene);
+          
+          // Build updates object with new statuses
+          const updates: Partial<StoryboardScene> = {
             state,
             generation_status: {
-              ...get().scenes.find((s) => s.id === scene_id)?.generation_status,
-              [state === 'video' ? 'video' : 'image']: status,
+              image: image_status,
+              video: video_status,
             },
-            video_url: video_url || undefined,
-            image_url: image_url || undefined,
             error_message: error || null,
-          });
+          };
+
+          // Update URLs if provided
+          if (image_url !== undefined) {
+            updates.image_url = image_url;
+          }
+          if (video_url !== undefined) {
+            updates.video_url = video_url;
+          }
+          
+          console.log('[SSE] Applying updates:', updates);
+          get().updateScene(scene_id, updates);
+          
+          const updatedScene = get().scenes.find((s) => s.id === scene_id);
+          console.log('[SSE] Scene after update:', updatedScene);
         } catch (err) {
-          console.error('Failed to parse SSE event:', err);
+          console.error('[SSE] Failed to parse SSE event:', err, event);
         }
       },
 
