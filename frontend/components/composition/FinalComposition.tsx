@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { useAppStore } from '@/store/appStore';
+import { useStoryboardStore } from '@/store/storyboardStore';
 import { useVideoComposition } from '@/hooks/useVideoComposition';
 import { useAudioGeneration } from '@/hooks/useAudioGeneration';
 import { Button } from '@/components/ui/button';
-import type { CompositionRequest } from '@/types/composition.types';
+import type { CompositionRequest, VideoClipInput } from '@/types/composition.types';
 import type { AudioGenerationRequest } from '@/types/audio.types';
 
 interface FinalCompositionProps {
@@ -16,7 +17,6 @@ type ProcessingPhase = 'idle' | 'audio' | 'composition' | 'complete';
 
 export function FinalComposition({ onBack }: FinalCompositionProps) {
   const {
-    generatedClips,
     audioUrl,
     finalVideo,
     compositionProgress,
@@ -24,6 +24,9 @@ export function FinalComposition({ onBack }: FinalCompositionProps) {
     selectedMoodId,
     moods,
   } = useAppStore();
+  
+  // Get storyboard scenes with videos
+  const { storyboard, scenes } = useStoryboardStore();
 
   const {
     composeVideo,
@@ -48,11 +51,26 @@ export function FinalComposition({ onBack }: FinalCompositionProps) {
   });
 
   const handleStartComposition = async () => {
-    if (!generatedClips || generatedClips.length === 0) {
-      alert('No video clips available');
+    // Convert storyboard scenes to video clips
+    const videoScenes = scenes.filter(scene => 
+      scene.state === 'video' && 
+      scene.video_url && 
+      scene.generation_status.video === 'complete'
+    );
+    
+    if (videoScenes.length === 0) {
+      alert('No completed video scenes available. Please ensure all scenes have generated videos.');
       return;
     }
+    
+    // Convert scenes to VideoClipInput format
+    const clips: VideoClipInput[] = videoScenes.map((scene, index) => ({
+      scene_number: index + 1,
+      video_url: scene.video_url!,
+      duration: scene.video_duration,
+    }));
 
+    console.log(`📹 Preparing ${clips.length} video clips for composition`);
     setHasStarted(true);
 
     try {
@@ -101,25 +119,14 @@ export function FinalComposition({ onBack }: FinalCompositionProps) {
       setCurrentPhase('composition');
 
       const request: CompositionRequest = {
-        clips: generatedClips
-          .filter((clip) => clip.video_url && clip.status === 'completed')
-          .map((clip) => ({
-            scene_number: clip.scene_number,
-            video_url: clip.video_url!,
-            duration: clip.duration,
-          })),
+        clips: clips,  // Use the clips we prepared from storyboard scenes
         audio_url: finalAudioUrl || undefined,
         include_crossfade: true,
         optimize_size: true,
         target_size_mb: 50,
       };
 
-      if (request.clips.length === 0) {
-        alert('No completed video clips available');
-        setHasStarted(false);
-        setCurrentPhase('idle');
-        return;
-      }
+      console.log(`🎬 Composing ${request.clips.length} clips${request.audio_url ? ' with audio' : ''}`);
 
       await composeVideo(request);
       setCurrentPhase('complete');
@@ -143,7 +150,13 @@ export function FinalComposition({ onBack }: FinalCompositionProps) {
 
   // Auto-start composition when component mounts (if not already started)
   useEffect(() => {
-    if (!hasStarted && !finalVideo && generatedClips.length > 0) {
+    const hasCompletedVideos = scenes.some(scene => 
+      scene.state === 'video' && 
+      scene.video_url && 
+      scene.generation_status.video === 'complete'
+    );
+    
+    if (!hasStarted && !finalVideo && hasCompletedVideos) {
       handleStartComposition();
     }
   }, []);
@@ -177,7 +190,7 @@ export function FinalComposition({ onBack }: FinalCompositionProps) {
           <div className="text-4xl">🎥</div>
           <h3 className="text-xl font-semibold">Ready to Compose Final Video</h3>
           <p className="text-muted-foreground">
-            We'll stitch together {generatedClips.filter((c) => c.status === 'completed').length} clips
+            We'll stitch together {scenes.filter(s => s.state === 'video' && s.video_url && s.generation_status.video === 'complete').length} scenes
             with crossfade transitions and background music.
           </p>
           <Button onClick={handleStartComposition} size="lg">
@@ -307,8 +320,8 @@ export function FinalComposition({ onBack }: FinalCompositionProps) {
                 </div>
               )}
               <div className="text-center p-3 bg-zinc-50 dark:bg-zinc-800 rounded-lg">
-                <div className="text-2xl font-bold">{generatedClips.length}</div>
-                <div className="text-xs text-muted-foreground">Clips</div>
+                <div className="text-2xl font-bold">{scenes.filter(s => s.state === 'video' && s.video_url).length}</div>
+                <div className="text-xs text-muted-foreground">Scenes</div>
               </div>
               <div className="text-center p-3 bg-zinc-50 dark:bg-zinc-800 rounded-lg">
                 <div className="text-2xl font-bold">9:16</div>
@@ -369,13 +382,17 @@ export function FinalComposition({ onBack }: FinalCompositionProps) {
                   clearAudioError();
                   setCurrentPhase('composition');
                   // Continue without audio
+                  const videoScenes = scenes.filter(scene => 
+                    scene.state === 'video' && 
+                    scene.video_url && 
+                    scene.generation_status.video === 'complete'
+                  );
+                  
                   const request: CompositionRequest = {
-                    clips: generatedClips
-                      .filter((clip) => clip.video_url && clip.status === 'completed')
-                      .map((clip) => ({
-                        scene_number: clip.scene_number,
-                        video_url: clip.video_url!,
-                        duration: clip.duration,
+                    clips: videoScenes.map((scene, index) => ({
+                        scene_number: index + 1,
+                        video_url: scene.video_url!,
+                        duration: scene.video_duration,
                       })),
                     include_crossfade: true,
                     optimize_size: true,

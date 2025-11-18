@@ -89,7 +89,19 @@ export const ERROR_CODES = {
   COMPOSITION_FAILED: 'COMPOSITION_FAILED',
   COMPOSITION_MISSING_CLIPS: 'COMPOSITION_MISSING_CLIPS',
   COMPOSITION_MISSING_AUDIO: 'COMPOSITION_MISSING_AUDIO',
-  
+
+  // Storyboard Errors
+  STORYBOARD_INIT_FAILED: 'STORYBOARD_INIT_FAILED',
+  STORYBOARD_LOAD_FAILED: 'STORYBOARD_LOAD_FAILED',
+  STORYBOARD_REGENERATE_FAILED: 'STORYBOARD_REGENERATE_FAILED',
+  SCENE_TEXT_UPDATE_FAILED: 'SCENE_TEXT_UPDATE_FAILED',
+  SCENE_TEXT_GENERATION_FAILED: 'SCENE_TEXT_GENERATION_FAILED',
+  SCENE_IMAGE_GENERATION_FAILED: 'SCENE_IMAGE_GENERATION_FAILED',
+  SCENE_VIDEO_GENERATION_FAILED: 'SCENE_VIDEO_GENERATION_FAILED',
+  SCENE_DURATION_UPDATE_FAILED: 'SCENE_DURATION_UPDATE_FAILED',
+  SCENE_NOT_FOUND: 'SCENE_NOT_FOUND',
+  SSE_CONNECTION_FAILED: 'SSE_CONNECTION_FAILED',
+
   // Unknown
   UNKNOWN_ERROR: 'UNKNOWN_ERROR',
 } as const;
@@ -148,7 +160,19 @@ export const ERROR_MESSAGES: Record<string, string> = {
   [ERROR_CODES.COMPOSITION_FAILED]: 'Failed to compose final video. Please check that all clips are ready and try again.',
   [ERROR_CODES.COMPOSITION_MISSING_CLIPS]: 'Missing video clips for composition. Please generate all clips first.',
   [ERROR_CODES.COMPOSITION_MISSING_AUDIO]: 'Missing background audio for composition. Please generate audio first.',
-  
+
+  // Storyboard Errors
+  [ERROR_CODES.STORYBOARD_INIT_FAILED]: 'Failed to initialize storyboard. Please try again or adjust your creative brief.',
+  [ERROR_CODES.STORYBOARD_LOAD_FAILED]: 'Failed to load storyboard. Please check your connection and try again.',
+  [ERROR_CODES.STORYBOARD_REGENERATE_FAILED]: 'Failed to regenerate all scenes. Please try again.',
+  [ERROR_CODES.SCENE_TEXT_UPDATE_FAILED]: 'Failed to update scene text. Please try again.',
+  [ERROR_CODES.SCENE_TEXT_GENERATION_FAILED]: 'Failed to generate scene text. Please try again.',
+  [ERROR_CODES.SCENE_IMAGE_GENERATION_FAILED]: 'Failed to generate scene image. This may be due to content policy or rate limits. Please try again.',
+  [ERROR_CODES.SCENE_VIDEO_GENERATION_FAILED]: 'Failed to generate scene video. This may take a moment. Please check status or try again.',
+  [ERROR_CODES.SCENE_DURATION_UPDATE_FAILED]: 'Failed to update scene duration. Please try again.',
+  [ERROR_CODES.SCENE_NOT_FOUND]: 'Scene not found. Please refresh the page.',
+  [ERROR_CODES.SSE_CONNECTION_FAILED]: 'Real-time updates disconnected. Status will be polled instead.',
+
   // Unknown
   [ERROR_CODES.UNKNOWN_ERROR]: 'An unexpected error occurred. Please try again.',
 };
@@ -197,7 +221,8 @@ export function isRetryableError(error: unknown): boolean {
     error instanceof ScenePlanningError ||
     error instanceof VideoGenerationError ||
     error instanceof AudioGenerationError ||
-    error instanceof CompositionError
+    error instanceof CompositionError ||
+    error instanceof StoryboardError
   ) {
     return error.retryable;
   }
@@ -360,6 +385,18 @@ export class CompositionError extends Error {
   }
 }
 
+export class StoryboardError extends Error {
+  constructor(
+    message: string,
+    public code: string,
+    public retryable: boolean = true,
+    public sceneId?: string
+  ) {
+    super(message);
+    this.name = 'StoryboardError';
+  }
+}
+
 /**
  * Enhanced error message extraction that handles all pipeline error types
  */
@@ -369,7 +406,8 @@ export function getPipelineErrorMessage(error: unknown): string {
     error instanceof ScenePlanningError ||
     error instanceof VideoGenerationError ||
     error instanceof AudioGenerationError ||
-    error instanceof CompositionError
+    error instanceof CompositionError ||
+    error instanceof StoryboardError
   ) {
     return ERROR_MESSAGES[error.code] || error.message;
   }
@@ -411,12 +449,25 @@ export function getRecoverySuggestion(error: unknown): string | null {
   if (error instanceof CompositionError) {
     return 'Ensure all video clips and audio are generated successfully before composing.';
   }
-  
+
+  if (error instanceof StoryboardError) {
+    if (error.code === ERROR_CODES.SCENE_IMAGE_GENERATION_FAILED) {
+      return 'This may be due to content policy violations. Try regenerating or adjusting the scene text.';
+    }
+    if (error.code === ERROR_CODES.SCENE_VIDEO_GENERATION_FAILED) {
+      return 'Video generation can take 1-2 minutes. Check the timeline for status or try regenerating.';
+    }
+    if (error.code === ERROR_CODES.SSE_CONNECTION_FAILED) {
+      return 'Don\'t worry - the page will poll for updates automatically.';
+    }
+    return 'Try the operation again. If the problem persists, refresh the page.';
+  }
+
   // Check for retryable errors
   if (isRetryableError(error)) {
     return 'This is a temporary error. Please try again in a moment.';
   }
-  
+
   return null;
 }
 
