@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, Suspense } from 'react';
+import { useRouter } from 'next/navigation';
 import { StepIndicator } from '@/components/ui/StepIndicator';
 import { LoadingFallback, StepSkeleton } from '@/components/ui/LoadingFallback';
 import { SkipToContent } from '@/components/ui/SkipToContent';
@@ -20,6 +21,7 @@ import * as LazyComponents from '@/components/LazyComponents';
  * Main page that conditionally renders different steps based on currentStep.
  */
 export default function Home() {
+  const router = useRouter();
   const {
     currentStep,
     setCurrentStep,
@@ -111,49 +113,12 @@ export default function Home() {
     }
   }, [currentStep, audioUrl, selectedMoodId, activeBrief, isAudioLoading, moods, generateAudio]);
 
-  // HARDCODED: Auto-generate scene plan when entering step 3
+  // Redirect to unified storyboard page when step 3 is reached
   useEffect(() => {
-    // Wait for moods to be available before generating scene plan
-    if (currentStep === 3 && !scenePlan && !isSceneLoading && moods.length > 0) {
-      const selectedMood = selectedMoodId 
-        ? moods.find((m) => m.id === selectedMoodId)
-        : moods[0];
-
-      if (selectedMood) {
-        const request: ScenePlanRequest = {
-          product_name: activeBrief?.product_name || 'Test Product',
-          target_audience: activeBrief?.target_audience || 'Test Audience',
-          emotional_tone: activeBrief?.emotional_tone || [],
-          visual_style_keywords: activeBrief?.visual_style_keywords || [],
-          key_messages: activeBrief?.key_messages || [],
-          mood_id: selectedMood.id,
-          mood_name: selectedMood.name,
-          mood_style_keywords: selectedMood.style_keywords,
-          mood_color_palette: selectedMood.color_palette,
-          mood_aesthetic_direction: selectedMood.aesthetic_direction,
-        };
-
-        generateScenePlan(request).then((plan) => {
-          if (plan) {
-            setScenePlan(plan);
-            generateSeedImages(
-              plan.scenes,
-              selectedMood.style_keywords,
-              selectedMood.color_palette,
-              selectedMood.aesthetic_direction
-            ).then((scenesWithImages) => {
-              if (scenesWithImages) {
-                setScenePlan({
-                  ...plan,
-                  scenes: scenesWithImages,
-                });
-              }
-            });
-          }
-        });
-      }
+    if (currentStep === 3) {
+      router.push('/storyboard');
     }
-  }, [currentStep, scenePlan, isSceneLoading, selectedMoodId, moods, activeBrief, generateScenePlan, generateSeedImages, setScenePlan]);
+  }, [currentStep, router]);
 
   const handleContinueToMoods = () => {
     // HARDCODED: Skip validation for testing
@@ -318,41 +283,15 @@ export default function Home() {
         </div>
       )}
 
+      {/* Step 3: Storyboard - Redirects to /storyboard page */}
       {currentStep === 3 && (
         <div className="flex min-h-[calc(100vh-80px)] sm:min-h-[calc(100vh-100px)] items-center justify-center p-3 sm:p-4 md:p-6 lg:p-8 animate-fadeIn">
           <div className="w-full max-w-7xl space-y-3 sm:space-y-4 md:space-y-6">
-          {/* Back button - Responsive */}
-          <button
-            onClick={() => setCurrentStep(2)}
-            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-all duration-200 hover:gap-3 animate-slideUp"
-          >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 19l-7-7 7-7"
-              />
-            </svg>
-            Back to Moods
-          </button>
-
-          <div className="animate-slideUp animation-delay-100">
-            <Suspense fallback={<StepSkeleton />}>
-              <LazyComponents.Storyboard
-                scenePlan={scenePlan || generatedScenePlan}
-                onGenerate={handleGenerateScenePlan}
-                onContinue={handleContinueFromScenes}
-                isLoading={isSceneLoading}
-                error={sceneError}
-              />
-            </Suspense>
-          </div>
+            <div className="animate-slideUp animation-delay-100">
+              <Suspense fallback={<StepSkeleton />}>
+                <LoadingFallback message="Loading storyboard..." />
+              </Suspense>
+            </div>
           </div>
         </div>
       )}

@@ -44,3 +44,7 @@ ENV/
 # Task Master files
 .taskmaster/
 .cursor/rules/taskmaster/ 
+
+# Task files
+# tasks.json
+# tasks/ 
