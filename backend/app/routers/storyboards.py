@@ -493,11 +493,6 @@ async def generate_video_task(scene_id: str):
 
         # Generate video using Replicate (image-to-video model)
         # Using ByteDance SeeDance-1 Pro Fast - supports longer videos
-        print(f"[Video Generation] Generating video for scene {scene_id}")
-        print(f"[Video Generation] Image URL: {scene.image_url}")
-        print(f"[Video Generation] Target duration: {scene.video_duration}s")
-        
-        # Create Replicate client with token
         client = replicate.Client(api_token=replicate_token)
         
         output = await asyncio.to_thread(
@@ -505,11 +500,10 @@ async def generate_video_task(scene_id: str):
             "bytedance/seedance-1-pro-fast",
             input={
                 "image": scene.image_url,
-                "prompt": scene.text,  # Use the scene text as the video generation prompt
-                "duration": scene.video_duration,  # Use the actual scene duration
+                "prompt": scene.text,
+                "duration": scene.video_duration,
             }
         )
-        print(f"[Video Generation] Replicate returned output for scene {scene_id}: {output}")
 
         # Extract video URL from output
         # Video output might be a list or a single URL
@@ -518,8 +512,6 @@ async def generate_video_task(scene_id: str):
                 video_url = str(output[0]) if hasattr(output[0], '__str__') else output[0]
             else:
                 video_url = str(output) if hasattr(output, '__str__') else output
-            
-            print(f"[Video Generation] Extracted video URL for scene {scene_id}: {video_url}")
 
             # Update scene with video URL
             scene.video_url = video_url
@@ -530,22 +522,13 @@ async def generate_video_task(scene_id: str):
             raise Exception("No video generated")
 
         db.update_scene(scene_id, scene)
-        print(f"[Video Generation] Successfully updated scene {scene_id} with video")
-        print(f"[Video Generation] Scene state after update: {scene.state}")
-        print(f"[Video Generation] Scene video_url after update: {scene.video_url}")
-        print(f"[Video Generation] Scene generation_status.video after update: {scene.generation_status.video}")
 
     except Exception as e:
-        # Update scene with error
-        print(f"[Video Generation] Error generating video for scene {scene_id}: {str(e)}")
-        import traceback
-        print(f"[Video Generation] Traceback: {traceback.format_exc()}")
         scene = db.get_scene(scene_id)
         if scene:
             scene.generation_status.video = "error"
             scene.error_message = f"Video generation failed: {str(e)}"
             db.update_scene(scene_id, scene)
-            print(f"[Video Generation] Updated scene {scene_id} with error status")
 
 
 @router.post("/{storyboard_id}/scenes/{scene_id}/video/generate", response_model=SceneUpdateResponse)
@@ -574,14 +557,11 @@ async def generate_scene_video(
             )
 
         # Start video generation in background
-        print(f"[Video Generation] Adding background task for scene {scene_id}")
         background_tasks.add_task(generate_video_task, scene_id)
-        print(f"[Video Generation] Background task added for scene {scene_id}")
 
         # Return immediately with generating status
         scene.generation_status.video = "generating"
         db.update_scene(scene_id, scene)
-        print(f"[Video Generation] Endpoint returning with 'generating' status for scene {scene_id}")
 
         return SceneUpdateResponse(
             success=True,
@@ -658,16 +638,11 @@ async def scene_update_generator(storyboard_id: str) -> AsyncGenerator[str, None
     """
     # Track last known state for each scene
     last_states = {}
-    poll_count = 0
-
-    print(f"[SSE Generator] Started for storyboard {storyboard_id}")
     
     try:
         while True:
-            poll_count += 1
             # Get all scenes for this storyboard
             scenes = db.get_scenes_by_storyboard(storyboard_id)
-            print(f"[SSE Generator] Poll #{poll_count} for storyboard {storyboard_id}: found {len(scenes)} scenes")
 
             # Check for changes
             for scene in scenes:
@@ -683,10 +658,6 @@ async def scene_update_generator(storyboard_id: str) -> AsyncGenerator[str, None
                 # Compare with last known state
                 last_state = last_states.get(scene.id)
                 
-                # Debug logging - always log for first few polls
-                if poll_count <= 3 or scene.id in last_states:
-                    print(f"[SSE Generator] Scene {scene.id[:8]}: last={last_state}, current={current_state}")
-                
                 if last_state != current_state:
                     # State changed, send update with BOTH statuses
                     update = SSESceneUpdate(
@@ -699,26 +670,20 @@ async def scene_update_generator(storyboard_id: str) -> AsyncGenerator[str, None
                         error=scene.error_message
                     )
 
-                    print(f"[SSE Generator] 🔔 STATE CHANGED! Sending update for scene {scene.id[:8]}: state={scene.state}, image_status={scene.generation_status.image}, video_status={scene.generation_status.video}, image_url={scene.image_url[:50] if scene.image_url else None}...")
-                    
                     # Format as SSE event
                     data = f"event: scene_update\ndata: {update.model_dump_json()}\n\n"
-                    print(f"[SSE Generator] Yielding data: {data[:100]}...")
                     yield data
 
                     # Update last known state
                     last_states[scene.id] = current_state
-                    print(f"[SSE Generator] Updated last_states for scene {scene.id[:8]}")
 
             # Wait before next poll
             await asyncio.sleep(2)  # Poll every 2 seconds
 
     except asyncio.CancelledError:
-        print(f"[SSE Generator] Cancelled for storyboard {storyboard_id}")
-    except Exception as e:
-        print(f"[SSE Generator] Error for storyboard {storyboard_id}: {e}")
-        import traceback
-        traceback.print_exc()
+        pass
+    except Exception:
+        pass
 
 
 @router.get("/{storyboard_id}/events")

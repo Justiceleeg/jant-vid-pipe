@@ -171,13 +171,11 @@ class FFmpegCompositionService:
             if video_stream:
                 width = int(video_stream['width'])
                 height = int(video_stream['height'])
-                print(f"📐 Detected resolution: {width}x{height} for {video_path.name}")
                 return (width, height)
-        except Exception as e:
-            print(f"⚠ Warning: Could not detect resolution for {video_path.name}: {e}")
+        except Exception:
+            pass
         
         # Default to 1080x1920 if detection fails
-        print(f"📐 Using default resolution: {self.TARGET_WIDTH}x{self.TARGET_HEIGHT}")
         return (self.TARGET_WIDTH, self.TARGET_HEIGHT)
 
     def _check_has_audio(self, video_path: Path) -> bool:
@@ -270,11 +268,6 @@ class FFmpegCompositionService:
             total_crossfade_time = num_transitions * self.CROSSFADE_DURATION if include_crossfade else 0
             final_duration = total_duration - total_crossfade_time
 
-            print(f"📊 Composition details:")
-            print(f"   - Resolution: {detected_width}x{detected_height}")
-            print(f"   - {len(video_paths)} clips, total duration: {total_duration:.1f}s")
-            print(f"   - Crossfade transitions: {num_transitions} × {self.CROSSFADE_DURATION}s")
-            print(f"   - Final duration: {final_duration:.1f}s")
 
             # Compose video based on whether crossfade is needed
             if include_crossfade and len(video_paths) > 1:
