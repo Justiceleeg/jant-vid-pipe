@@ -40,6 +40,10 @@ export interface StoryboardScene {
   error_message?: string | null;
   created_at: string; // ISO timestamp
   updated_at: string; // ISO timestamp
+  
+  // Product compositing (for product mode)
+  use_product_composite?: boolean;
+  product_id?: string | null;
 }
 
 /**
@@ -78,8 +82,7 @@ export interface StoryboardInitializeResponse {
  * Request payload for text update/regeneration
  */
 export interface SceneTextUpdateRequest {
-  scene_id: string;
-  new_text: string;
+  text: string; // Backend expects 'text', not 'new_text'
 }
 
 /**
@@ -101,8 +104,7 @@ export interface SceneImageGenerateRequest {
  * Request payload for duration update
  */
 export interface SceneDurationUpdateRequest {
-  scene_id: string;
-  new_duration: number; // 1-10 seconds
+  duration: number; // 1-10 seconds
 }
 
 /**
