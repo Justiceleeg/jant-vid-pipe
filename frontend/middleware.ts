@@ -5,7 +5,10 @@ import { NextResponse } from "next/server";
  * Clerk middleware configuration
  * Protects routes and handles callback URL preservation
  */
-const isProtectedRoute = createRouteMatcher(["/projects(.*)"]);
+const isProtectedRoute = createRouteMatcher([
+  "/projects(.*)",
+  "/brand-assets(.*)",
+]);
 
 export default clerkMiddleware(async (auth, req) => {
   const { userId, redirectToSignIn } = await auth();
