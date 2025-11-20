@@ -9,6 +9,7 @@ import { useAppStore } from '@/store/appStore';
 import { useProjectStore } from '@/store/projectStore';
 import { ToastProvider } from '@/components/ui/Toast';
 import * as LazyComponents from '@/components/LazyComponents';
+import { STEPS } from '@/lib/steps';
 
 /**
  * Chat page for vision chat interface and creative brief generation.
@@ -62,8 +63,8 @@ function ChatContent() {
   }, [chatBrief, creativeBrief, setCreativeBrief]);
 
   const handleContinueToMood = () => {
-    // Set step to 3 and navigate to mood page
-    useAppStore.getState().setCurrentStep(3);
+    // Set step to mood and navigate to mood page
+    useAppStore.getState().setCurrentStep(STEPS.MOOD);
     router.push(`/project/${projectId}/mood`);
   };
 

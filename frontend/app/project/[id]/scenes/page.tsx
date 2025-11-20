@@ -8,6 +8,7 @@ import { useAppStore } from '@/store/appStore';
 import { useProjectStore } from '@/store/projectStore';
 import { ToastProvider, useToast } from '@/components/ui/Toast';
 import { ErrorAlert } from '@/components/ui/ErrorAlert';
+import { STEPS } from '@/lib/steps';
 
 /**
  * Unified Storyboard Interface Page
@@ -279,7 +280,7 @@ function ScenesPageContent() {
   const handleGenerateFinalVideo = () => {
     // Mark storyboard as completed and navigate to final composition
     setStoryboardCompleted(true);
-    setCurrentStep(6);
+    setCurrentStep(STEPS.FINAL);
     router.push(`/project/${projectId}/final`);
   };
 

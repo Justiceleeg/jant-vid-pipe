@@ -16,15 +16,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { MoreVertical, Plus } from 'lucide-react';
-
-const STEP_NAMES: Record<1 | 2 | 3 | 4 | 5 | 6, string> = {
-  1: 'Chat',
-  2: 'Product Upload',
-  3: 'Mood Selection',
-  4: 'Storyboard',
-  5: 'Video Generation',
-  6: 'Final Composition',
-};
+import { STEP_LABELS } from '@/lib/steps';
 
 export default function ProjectsPage() {
   const router = useRouter();
@@ -170,7 +162,7 @@ export default function ProjectsPage() {
                       <div className="flex-1 min-w-0">
                         <CardTitle className="truncate">{project.name}</CardTitle>
                         <CardDescription className="mt-1">
-                          {STEP_NAMES[project.currentStep]}
+                          {STEP_LABELS[project.currentStep]}
                         </CardDescription>
                       </div>
                       <DropdownMenu>

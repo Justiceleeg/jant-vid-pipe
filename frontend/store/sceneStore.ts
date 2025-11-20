@@ -4,15 +4,15 @@ import * as storyboardAPI from '@/lib/api/storyboard';
 import { retryOperation, StoryboardError, ERROR_CODES, isSensitiveContentError, extractErrorMessage } from '@/lib/errors';
 
 /**
- * Storyboard Store
+ * Scene Store
  *
- * Manages storyboard state with real-time updates via SSE.
+ * Manages scene/storyboard state with real-time updates via SSE.
  * 
  * NOTE: This store is NOT persisted to localStorage directly.
  * Storyboards are stored in the backend database and referenced by ID in the projectStore.
  * Each project has a storyboardId that's used to load the correct storyboard from the API.
  */
-interface StoryboardState {
+interface SceneState {
   // Core data
   storyboard: Storyboard | null;
   scenes: StoryboardScene[];
@@ -59,7 +59,7 @@ interface StoryboardState {
   reset: () => void;
 }
 
-export const useStoryboardStore = create<StoryboardState>((set, get) => ({
+export const useSceneStore = create<SceneState>((set, get) => ({
   // Initial state
   storyboard: null,
   scenes: [],

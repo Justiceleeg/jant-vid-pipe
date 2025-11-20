@@ -1,8 +1,6 @@
+import type { StepName } from '@/lib/steps';
 import type { CreativeBrief } from '@/types/chat.types';
 import type { Mood } from '@/types/mood.types';
-import type { ScenePlan } from '@/types/scene.types';
-import type { COLMAPState, NeRFTrainingState, RenderingState } from '@/types/nerf.types';
-import type { ProductImage } from '@/types/product.types';
 
 /**
  * Project interface representing a complete video generation project.
@@ -29,7 +27,7 @@ export interface ProjectMetadata {
   updatedAt: string;
   thumbnail?: string;
   storyboardId?: string;
-  currentStep: 1 | 2 | 3 | 4 | 5 | 6;
+  currentStep: StepName;
 }
 
 /**
@@ -37,22 +35,14 @@ export interface ProjectMetadata {
  * This is a serializable representation of the app state.
  */
 export interface AppStateSnapshot {
-  currentStep: 1 | 2 | 3 | 4 | 5 | 6;
+  currentStep: StepName;
   creativeBrief: CreativeBrief | null;
-  uploadedProduct: ProductImage | null;
-  colmap: COLMAPState | null;
-  nerfTraining: NeRFTrainingState | null;
-  rendering: RenderingState | null;
   moods: Mood[];
   selectedMoodId: string | null;
   storyboardCompleted: boolean;
-  scenePlan: ScenePlan | null;
-  videoJobId: string | null;
-  generatedClips: any[];
   audioUrl: string | null;
   compositionJobId: string | null;
   finalVideo: any | null;
-  // Note: productImages (File[]) is not included as it cannot be serialized
 }
 
 /**

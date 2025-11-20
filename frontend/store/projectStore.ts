@@ -1,8 +1,9 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { Project, ProjectMetadata, AppStateSnapshot, CreateProjectRequest, UpdateProjectRequest } from '@/types/project.types';
+import { migrateNumericStep } from '@/lib/steps';
 import { useAppStore } from './appStore';
-import { useStoryboardStore } from './storyboardStore';
+import { useSceneStore } from './sceneStore';
 
 const PROJECTS_STORAGE_KEY = 'jant-vid-pipe-projects';
 const CURRENT_PROJECT_STORAGE_KEY = 'jant-vid-pipe-current-project-id';
@@ -76,18 +77,17 @@ function createAppStateSnapshot(): AppStateSnapshot {
 // Helper to restore app state from snapshot
 function restoreAppState(snapshot: AppStateSnapshot): void {
   const appStore = useAppStore.getState();
-  appStore.setCurrentStep(snapshot.currentStep);
+  
+  // Migrate old numeric steps to string-based steps
+  const currentStep = typeof snapshot.currentStep === 'number' 
+    ? migrateNumericStep(snapshot.currentStep)
+    : snapshot.currentStep;
+  
+  appStore.setCurrentStep(currentStep);
   appStore.setCreativeBrief(snapshot.creativeBrief);
-  appStore.setUploadedProduct(snapshot.uploadedProduct);
-  if (snapshot.colmap) appStore.setCOLMAP(snapshot.colmap);
-  if (snapshot.nerfTraining) appStore.setNeRFTraining(snapshot.nerfTraining);
-  if (snapshot.rendering) appStore.setRendering(snapshot.rendering);
   appStore.setMoods(snapshot.moods);
   if (snapshot.selectedMoodId) appStore.selectMood(snapshot.selectedMoodId);
   appStore.setStoryboardCompleted(snapshot.storyboardCompleted);
-  if (snapshot.scenePlan) appStore.setScenePlan(snapshot.scenePlan);
-  if (snapshot.videoJobId) appStore.setVideoJobId(snapshot.videoJobId);
-  appStore.setGeneratedClips(snapshot.generatedClips);
   if (snapshot.audioUrl) appStore.setAudioUrl(snapshot.audioUrl);
   if (snapshot.compositionJobId) appStore.setCompositionJobId(snapshot.compositionJobId);
   if (snapshot.finalVideo) appStore.setFinalVideo(snapshot.finalVideo);
@@ -120,7 +120,7 @@ export const useProjectStore = create<ProjectStoreState>()(
 
         // Reset app store for new project
         useAppStore.getState().reset();
-        useStoryboardStore.getState().reset();
+        useSceneStore.getState().reset();
 
         console.log('[ProjectStore] Created new project:', { id: projectId, name });
 
@@ -155,7 +155,7 @@ export const useProjectStore = create<ProjectStoreState>()(
           } else {
             // Reset stores if no projects left
             useAppStore.getState().reset();
-            useStoryboardStore.getState().reset();
+            useSceneStore.getState().reset();
           }
         }
 
@@ -222,8 +222,8 @@ export const useProjectStore = create<ProjectStoreState>()(
         // Set as current project
         set({ currentProjectId: id });
 
-        // Reset storyboard store FIRST to clear any previous project's storyboard
-        useStoryboardStore.getState().reset();
+        // Reset scene store FIRST to clear any previous project's scenes
+        useSceneStore.getState().reset();
 
         // Restore app state
         restoreAppState(project.appState);
@@ -231,7 +231,7 @@ export const useProjectStore = create<ProjectStoreState>()(
         // Load storyboard if storyboardId exists
         if (project.storyboardId) {
           console.log('[ProjectStore] Loading storyboard for project:', project.storyboardId);
-          useStoryboardStore.getState().loadStoryboard(project.storyboardId).catch(err => {
+          useSceneStore.getState().loadStoryboard(project.storyboardId).catch(err => {
             console.error('[ProjectStore] Failed to load storyboard:', err);
           });
         } else {
@@ -247,8 +247,8 @@ export const useProjectStore = create<ProjectStoreState>()(
         if (projectIndex === -1) return;
 
         const appStateSnapshot = createAppStateSnapshot();
-        const storyboardState = useStoryboardStore.getState();
-        const storyboardId = storyboardState.storyboard?.storyboard_id;
+        const sceneState = useSceneStore.getState();
+        const storyboardId = sceneState.storyboard?.storyboard_id;
 
         const updatedProjects = [...state.projects];
         const projectName = updatedProjects[projectIndex].name;
@@ -376,7 +376,7 @@ if (typeof window !== 'undefined') {
         // Also restore storyboard if it exists
         if (currentProject.storyboardId) {
           console.log('[ProjectStore] Restoring storyboard on load:', currentProject.storyboardId);
-          useStoryboardStore.getState().loadStoryboard(currentProject.storyboardId).catch(err => {
+          useSceneStore.getState().loadStoryboard(currentProject.storyboardId).catch(err => {
             console.error('[ProjectStore] Failed to restore storyboard:', err);
           });
         }

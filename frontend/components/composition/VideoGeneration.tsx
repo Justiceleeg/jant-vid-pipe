@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAppStore } from '@/store/appStore';
-import { useStoryboardStore } from '@/store/storyboardStore';
+import { useSceneStore } from '@/store/sceneStore';
 import { useVideoGeneration } from '@/hooks/useVideoGeneration';
 import { VideoGenerationProgress } from '@/components/video';
 import { Button } from '@/components/ui/button';
@@ -28,7 +28,7 @@ export function VideoGeneration({ onComplete, onBack }: VideoGenerationProps) {
   } = useAppStore();
   
   // Check if using storyboard flow instead
-  const { storyboard, scenes: storyboardScenes } = useStoryboardStore();
+  const { storyboard, scenes: storyboardScenes } = useSceneStore();
 
   const {
     jobStatus: videoStatus,

@@ -7,6 +7,7 @@ import { useAppStore } from '@/store/appStore';
 import { useProjectStore } from '@/store/projectStore';
 import { ToastProvider } from '@/components/ui/Toast';
 import { FinalComposition } from '@/components/composition/FinalComposition';
+import { STEPS } from '@/lib/steps';
 
 /**
  * Final Composition page - allows users to compose the final video
@@ -42,7 +43,7 @@ function FinalPageContent() {
 
   const handleBack = () => {
     // Navigate back to scenes
-    setCurrentStep(4);
+    setCurrentStep(STEPS.SCENES);
     router.push(`/project/${projectId}/scenes`);
   };
 

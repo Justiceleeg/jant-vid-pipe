@@ -8,6 +8,7 @@ import { useProjectStore } from '@/store/projectStore';
 import { MoodBoard } from '@/components/moods/MoodBoard';
 import { StepSkeleton } from '@/components/ui/LoadingFallback';
 import type { MoodGenerationRequest } from '@/types/mood.types';
+import { STEPS } from '@/lib/steps';
 
 /**
  * Mood selection page - allows users to select a mood board
@@ -90,13 +91,13 @@ export default function MoodPage() {
 
   const handleContinue = () => {
     // Navigate to scenes page
-    setCurrentStep(4);
+    setCurrentStep(STEPS.SCENES);
     router.push(`/project/${projectId}/scenes`);
   };
 
   const handleBack = () => {
     // Navigate back to chat
-    setCurrentStep(1);
+    setCurrentStep(STEPS.CHAT);
     router.push(`/project/${projectId}/chat`);
   };
 
