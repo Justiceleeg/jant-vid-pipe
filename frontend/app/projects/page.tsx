@@ -91,8 +91,11 @@ export default function ProjectsPage() {
   };
 
   const handleDuplicate = (projectId: string) => {
+    const { projects } = useProjectStore.getState();
     const newProjectId = duplicateProject(projectId);
-    router.push(`/project/${newProjectId}/chat`);
+    const duplicatedProject = projects.find(p => p.id === newProjectId);
+    const currentStep = duplicatedProject?.appState.currentStep || 'chat';
+    router.push(`/project/${newProjectId}/${currentStep}`);
   };
 
   const handleProjectClick = (projectId: string) => {
@@ -108,11 +111,14 @@ export default function ProjectsPage() {
     // Load the project before routing to ensure correct state
     try {
       loadProject(projectId);
-      router.push(`/project/${projectId}/chat`);
+      // Route to the project's current step instead of always going to chat
+      const currentStep = project.appState.currentStep;
+      router.push(`/project/${projectId}/${currentStep}`);
     } catch (error) {
       console.error('Failed to load project:', error);
       // Still route - the page will handle the error
-      router.push(`/project/${projectId}/chat`);
+      const currentStep = project.appState.currentStep;
+      router.push(`/project/${projectId}/${currentStep}`);
     }
   };
 

@@ -26,7 +26,14 @@ export function ProjectSwitcher() {
     .slice(0, 5);
 
   const handleSwitchProject = (projectId: string) => {
-    router.push(`/project/${projectId}/chat`);
+    const { loadProject, projects } = useProjectStore.getState();
+    const project = projects.find(p => p.id === projectId);
+    
+    if (project) {
+      loadProject(projectId);
+      const currentStep = project.appState.currentStep;
+      router.push(`/project/${projectId}/${currentStep}`);
+    }
   };
 
   const handleViewAll = () => {
