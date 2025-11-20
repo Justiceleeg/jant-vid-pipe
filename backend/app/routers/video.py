@@ -1,8 +1,8 @@
 """FastAPI router for video generation endpoints."""
 import uuid
 from datetime import datetime
-from typing import Dict
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from typing import Optional
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Request
 
 from app.models.video_models import (
     VideoGenerationRequest,
@@ -13,12 +13,10 @@ from app.models.video_models import (
     JobStatus
 )
 from app.services.replicate_service import ReplicateVideoService
+from app.firestore_database import db
+from app.middleware.clerk_auth import get_current_user_id, get_optional_user_id
 
 router = APIRouter(prefix="/api/video", tags=["video"])
-
-# In-memory job tracking
-# In production, this should be replaced with Redis or a database
-_jobs: Dict[str, VideoJobStatus] = {}
 
 # Initialize video service
 video_service = None  # Will be initialized on first request
@@ -38,12 +36,13 @@ def get_video_service() -> ReplicateVideoService:
     return video_service
 
 
-def _create_job(request: VideoGenerationRequest) -> str:
+async def _create_job(request: VideoGenerationRequest, user_id: Optional[str] = None) -> str:
     """
-    Create a new video generation job.
+    Create a new video generation job in Firestore.
 
     Args:
         request: Video generation request with scenes
+        user_id: Optional user ID from Clerk authentication
 
     Returns:
         job_id: Unique identifier for the job
@@ -78,23 +77,32 @@ def _create_job(request: VideoGenerationRequest) -> str:
         updated_at=now
     )
 
-    # Store in memory
-    _jobs[job_id] = job_status
+    # Save to Firestore (synchronous operation)
+    job_data = job_status.model_dump()
+    if user_id:
+        job_data["user_id"] = user_id
+    
+    db.collection("video_jobs").document(job_id).set(job_data)
 
     return job_id
 
 
-def _update_job_progress(job_id: str):
+async def _update_job_progress(job_id: str):
     """
-    Update overall job progress based on clip statuses.
+    Update overall job progress based on clip statuses in Firestore.
 
     Args:
         job_id: Job identifier
     """
-    if job_id not in _jobs:
+    # Get job from Firestore (synchronous operation)
+    job_ref = db.collection("video_jobs").document(job_id)
+    job_doc = job_ref.get()
+    
+    if not job_doc.exists:
         return
 
-    job = _jobs[job_id]
+    job_data = job_doc.to_dict()
+    job = VideoJobStatus(**job_data)
 
     # Count completed and failed clips
     completed = sum(1 for clip in job.clips if clip.status == JobStatus.COMPLETED)
@@ -124,11 +132,14 @@ def _update_job_progress(job_id: str):
         job.status = JobStatus.PROCESSING
 
     job.updated_at = datetime.utcnow().isoformat()
+    
+    # Save back to Firestore (synchronous operation)
+    job_ref.update(job.model_dump())
 
 
 async def _update_clip_progress(job_id: str, scene_number: int, status: str, video_url: str = None, error: str = None):
     """
-    Update progress for a specific clip in a job.
+    Update progress for a specific clip in a job in Firestore.
 
     Args:
         job_id: Job identifier
@@ -137,10 +148,15 @@ async def _update_clip_progress(job_id: str, scene_number: int, status: str, vid
         video_url: Video URL if completed
         error: Error message if failed
     """
-    if job_id not in _jobs:
+    # Get job from Firestore (synchronous operation)
+    job_ref = db.collection("video_jobs").document(job_id)
+    job_doc = job_ref.get()
+    
+    if not job_doc.exists:
         return
 
-    job = _jobs[job_id]
+    job_data = job_doc.to_dict()
+    job = VideoJobStatus(**job_data)
 
     # Find the clip and update it
     for clip in job.clips:
@@ -158,31 +174,39 @@ async def _update_clip_progress(job_id: str, scene_number: int, status: str, vid
                 clip.progress_percent = 0
             break
 
+    # Save updated job back to Firestore (synchronous operation)
+    job_ref.update(job.model_dump())
+
     # Update overall job progress
-    _update_job_progress(job_id)
+    await _update_job_progress(job_id)
 
 
 async def _process_video_generation(job_id: str, request: VideoGenerationRequest):
     """
     Background task to process video generation using Replicate img2vid.
 
-    Generates videos in parallel for all scenes and updates job progress.
+    Generates videos in parallel for all scenes and updates job progress in Firestore.
 
     Args:
         job_id: Job identifier
         request: Video generation request
     """
-    if job_id not in _jobs:
+    # Check if job exists in Firestore (synchronous operation)
+    job_ref = db.collection("video_jobs").document(job_id)
+    job_doc = job_ref.get()
+    
+    if not job_doc.exists:
         return
 
     try:
         # Get video service
         video_svc = get_video_service()
 
-        # Update job status to processing
-        job = _jobs[job_id]
-        job.status = JobStatus.PROCESSING
-        job.updated_at = datetime.utcnow().isoformat()
+        # Update job status to processing (synchronous operation)
+        job_ref.update({
+            "status": JobStatus.PROCESSING.value,
+            "updated_at": datetime.utcnow().isoformat()
+        })
 
         # Prepare scenes data for video generation
         scenes_data = [
@@ -207,19 +231,22 @@ async def _process_video_generation(job_id: str, request: VideoGenerationRequest
         )
 
         # Final update
-        _update_job_progress(job_id)
+        await _update_job_progress(job_id)
 
     except Exception as e:
-        # Job failed
-        if job_id in _jobs:
-            job = _jobs[job_id]
-            job.status = JobStatus.FAILED
-            job.error = f"Video generation failed: {str(e)}"
-            job.updated_at = datetime.utcnow().isoformat()
+        # Job failed - update in Firestore (synchronous operation)
+        job_doc = job_ref.get()
+        if job_doc.exists:
+            job_ref.update({
+                "status": JobStatus.FAILED.value,
+                "error": f"Video generation failed: {str(e)}",
+                "updated_at": datetime.utcnow().isoformat()
+            })
 
 
 @router.post("/generate", response_model=VideoGenerationResponse)
 async def generate_videos(
+    req: Request,
     request: VideoGenerationRequest,
     background_tasks: BackgroundTasks
 ) -> VideoGenerationResponse:
@@ -228,11 +255,12 @@ async def generate_videos(
 
     This endpoint:
     1. Accepts scene data with seed image URLs
-    2. Creates a job ID for tracking
+    2. Creates a job ID for tracking in Firestore
     3. Initiates parallel video generation in the background
     4. Returns immediately with job ID for status polling
 
     Args:
+        req: FastAPI Request object (for auth)
         request: Video generation request with scenes and seed images
         background_tasks: FastAPI background tasks manager
 
@@ -240,6 +268,9 @@ async def generate_videos(
         VideoGenerationResponse with job_id for tracking
     """
     try:
+        # Get user ID (optional - video generation can work without auth for now)
+        user_id = await get_optional_user_id(req)
+        
         # Validate request
         if not request.scenes:
             raise HTTPException(
@@ -258,11 +289,10 @@ async def generate_videos(
                 detail=f"Scenes missing seed images: {scenes_without_images}"
             )
 
-        # Create job
-        job_id = _create_job(request)
+        # Create job in Firestore
+        job_id = await _create_job(request, user_id)
 
         # Start background video generation
-        # This will be implemented in subtask 5.2
         background_tasks.add_task(_process_video_generation, job_id, request)
 
         return VideoGenerationResponse(
@@ -284,7 +314,7 @@ async def generate_videos(
 @router.get("/status/{job_id}", response_model=VideoJobStatusResponse)
 async def get_video_status(job_id: str) -> VideoJobStatusResponse:
     """
-    Get the current status of a video generation job.
+    Get the current status of a video generation job from Firestore.
 
     This endpoint provides:
     1. Overall job status (pending, processing, completed, failed)
@@ -299,14 +329,18 @@ async def get_video_status(job_id: str) -> VideoJobStatusResponse:
         VideoJobStatusResponse with current job status
     """
     try:
-        # Check if job exists
-        if job_id not in _jobs:
+        # Get job from Firestore (synchronous operation)
+        job_ref = db.collection("video_jobs").document(job_id)
+        job_doc = job_ref.get()
+        
+        if not job_doc.exists:
             raise HTTPException(
                 status_code=404,
                 detail=f"Job {job_id} not found"
             )
 
-        job_status = _jobs[job_id]
+        job_data = job_doc.to_dict()
+        job_status = VideoJobStatus(**job_data)
 
         return VideoJobStatusResponse(
             success=True,
@@ -325,19 +359,44 @@ async def get_video_status(job_id: str) -> VideoJobStatusResponse:
 
 # Admin/debug endpoint to list all jobs (can be removed in production)
 @router.get("/jobs")
-async def list_jobs():
-    """List all video generation jobs (for debugging)."""
-    return {
-        "total_jobs": len(_jobs),
-        "jobs": [
-            {
-                "job_id": job.job_id,
-                "status": job.status.value,
-                "progress": job.progress_percent,
-                "total_scenes": job.total_scenes,
-                "completed": job.completed_scenes,
-                "failed": job.failed_scenes
-            }
-            for job in _jobs.values()
-        ]
-    }
+async def list_jobs(req: Request):
+    """List all video generation jobs from Firestore (for debugging)."""
+    try:
+        # Optional: Get user_id to filter by user
+        user_id = await get_optional_user_id(req)
+        
+        # Query Firestore (synchronous operations)
+        jobs_ref = db.collection("video_jobs")
+        
+        # If user_id provided, filter by user
+        if user_id:
+            jobs_query = jobs_ref.where("user_id", "==", user_id)
+        else:
+            jobs_query = jobs_ref
+        
+        # Limit to recent jobs (last 100)
+        jobs_query = jobs_query.order_by("created_at", direction="DESCENDING").limit(100)
+        
+        jobs_docs = jobs_query.stream()
+        
+        jobs_list = []
+        for doc in jobs_docs:
+            job_data = doc.to_dict()
+            jobs_list.append({
+                "job_id": job_data.get("job_id"),
+                "status": job_data.get("status"),
+                "progress": job_data.get("progress_percent"),
+                "total_scenes": job_data.get("total_scenes"),
+                "completed": job_data.get("completed_scenes"),
+                "failed": job_data.get("failed_scenes")
+            })
+        
+        return {
+            "total_jobs": len(jobs_list),
+            "jobs": jobs_list
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to list jobs: {str(e)}"
+        )

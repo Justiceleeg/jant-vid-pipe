@@ -1,8 +1,8 @@
 """FastAPI router for video composition endpoints."""
 import uuid
 from datetime import datetime
-from typing import Dict, Optional
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from typing import Optional
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Request
 from fastapi.responses import FileResponse
 from pathlib import Path
 
@@ -14,12 +14,10 @@ from app.models.composition_models import (
     CompositionStatus
 )
 from app.services.ffmpeg_service import FFmpegCompositionService
+from app.firestore_database import db
+from app.middleware.clerk_auth import get_current_user_id, get_optional_user_id
 
 router = APIRouter(prefix="/api/composition", tags=["composition"])
-
-# In-memory job tracking
-# In production, this should be replaced with Redis or a database
-_jobs: Dict[str, CompositionJobStatus] = {}
 
 # Initialize composition service
 composition_service = None  # Will be initialized on first request
@@ -39,12 +37,13 @@ def get_composition_service() -> FFmpegCompositionService:
     return composition_service
 
 
-def _create_composition_job(request: CompositionRequest) -> str:
+async def _create_composition_job(request: CompositionRequest, user_id: Optional[str] = None) -> str:
     """
-    Create a new video composition job.
+    Create a new video composition job in Firestore.
 
     Args:
         request: Composition request with clips and settings
+        user_id: Optional user ID from Clerk authentication
 
     Returns:
         job_id: Unique identifier for the job
@@ -67,13 +66,17 @@ def _create_composition_job(request: CompositionRequest) -> str:
         updated_at=now
     )
 
-    # Store in memory
-    _jobs[job_id] = job_status
+    # Save to Firestore
+    job_data = job_status.model_dump()
+    if user_id:
+        job_data["user_id"] = user_id
+    
+    db.collection("composition_jobs").document(job_id).set(job_data)
 
     return job_id
 
 
-def _update_job_status(
+async def _update_job_status(
     job_id: str,
     status: CompositionStatus,
     progress: int,
@@ -81,10 +84,11 @@ def _update_job_status(
     video_url: Optional[str] = None,
     file_size_mb: Optional[float] = None,
     duration_seconds: Optional[float] = None,
-    error: Optional[str] = None
+    error: Optional[str] = None,
+    file_path: Optional[str] = None
 ):
     """
-    Update composition job status.
+    Update composition job status in Firestore.
 
     Args:
         job_id: Job identifier
@@ -95,26 +99,31 @@ def _update_job_status(
         file_size_mb: File size in MB (if completed)
         duration_seconds: Duration in seconds (if completed)
         error: Error message (if failed)
+        file_path: Local file path (temporary, will migrate to Firebase Storage later)
     """
-    if job_id not in _jobs:
-        return
-
-    job = _jobs[job_id]
-    job.status = status
-    job.progress_percent = progress
-
+    job_ref = db.collection("composition_jobs").document(job_id)
+    
+    # Build update dict
+    update_data = {
+        "status": status.value,
+        "progress_percent": progress,
+        "updated_at": datetime.utcnow().isoformat()
+    }
+    
     if current_step:
-        job.current_step = current_step
+        update_data["current_step"] = current_step
     if video_url:
-        job.video_url = video_url
+        update_data["video_url"] = video_url
     if file_size_mb is not None:
-        job.file_size_mb = file_size_mb
+        update_data["file_size_mb"] = file_size_mb
     if duration_seconds is not None:
-        job.duration_seconds = duration_seconds
+        update_data["duration_seconds"] = duration_seconds
     if error:
-        job.error = error
-
-    job.updated_at = datetime.utcnow().isoformat()
+        update_data["error"] = error
+    if file_path:
+        update_data["file_path"] = file_path
+    
+    job_ref.update(update_data)
 
 
 async def _process_composition(job_id: str, request: CompositionRequest):
@@ -125,7 +134,11 @@ async def _process_composition(job_id: str, request: CompositionRequest):
         job_id: Job identifier
         request: Composition request
     """
-    if job_id not in _jobs:
+    # Check if job exists in Firestore
+    job_ref = db.collection("composition_jobs").document(job_id)
+    job_doc = job_ref.get()
+    
+    if not job_doc.exists:
         return
 
     try:
@@ -133,7 +146,7 @@ async def _process_composition(job_id: str, request: CompositionRequest):
         service = get_composition_service()
 
         # Step 1: Downloading
-        _update_job_status(
+        await _update_job_status(
             job_id,
             CompositionStatus.DOWNLOADING,
             10,
@@ -141,7 +154,7 @@ async def _process_composition(job_id: str, request: CompositionRequest):
         )
 
         # Step 2: Composing
-        _update_job_status(
+        await _update_job_status(
             job_id,
             CompositionStatus.COMPOSING,
             30,
@@ -171,7 +184,7 @@ async def _process_composition(job_id: str, request: CompositionRequest):
 
         # Step 3: Optimizing (if requested)
         if request.optimize_size:
-            _update_job_status(
+            await _update_job_status(
                 job_id,
                 CompositionStatus.OPTIMIZING,
                 80,
@@ -193,21 +206,18 @@ async def _process_composition(job_id: str, request: CompositionRequest):
         duration_seconds = float(probe_data['format']['duration'])
 
         # For now, video_url is the local file path
-        # In production, you would upload this to cloud storage (S3, etc.)
+        # TODO: Upload to Firebase Storage in Phase 2
         video_url = f"/api/composition/download/{job_id}"
 
-        # Store file path and URL separately
-        _jobs[job_id].file_path = str(output_path)
-        _jobs[job_id].video_url = video_url
-
-        _update_job_status(
+        await _update_job_status(
             job_id,
             CompositionStatus.COMPLETED,
             100,
             current_step="Composition complete",
             video_url=video_url,
             file_size_mb=file_size_mb,
-            duration_seconds=duration_seconds
+            duration_seconds=duration_seconds,
+            file_path=str(output_path)
         )
 
         print(f"✅ Composition job {job_id} completed successfully")
@@ -217,7 +227,7 @@ async def _process_composition(job_id: str, request: CompositionRequest):
         error_msg = f"Composition failed: {str(e)}"
         print(f"✗ Job {job_id} failed: {error_msg}")
 
-        _update_job_status(
+        await _update_job_status(
             job_id,
             CompositionStatus.FAILED,
             0,
@@ -228,6 +238,7 @@ async def _process_composition(job_id: str, request: CompositionRequest):
 
 @router.post("/compose", response_model=CompositionResponse)
 async def compose_video(
+    req: Request,
     request: CompositionRequest,
     background_tasks: BackgroundTasks
 ) -> CompositionResponse:
@@ -236,11 +247,12 @@ async def compose_video(
 
     This endpoint:
     1. Accepts video clips and optional audio
-    2. Creates a composition job
+    2. Creates a composition job in Firestore
     3. Processes composition in the background
     4. Returns job ID for status polling
 
     Args:
+        req: FastAPI Request object (for auth)
         request: Composition request with clips and settings
         background_tasks: FastAPI background tasks manager
 
@@ -248,6 +260,9 @@ async def compose_video(
         CompositionResponse with job_id for tracking
     """
     try:
+        # Get user ID (optional)
+        user_id = await get_optional_user_id(req)
+        
         # Validate request
         if not request.clips:
             raise HTTPException(
@@ -266,8 +281,8 @@ async def compose_video(
                 detail=f"Clips missing video URLs: {clips_without_urls}"
             )
 
-        # Create job
-        job_id = _create_composition_job(request)
+        # Create job in Firestore
+        job_id = await _create_composition_job(request, user_id)
 
         # Start background composition
         background_tasks.add_task(_process_composition, job_id, request)
@@ -291,7 +306,7 @@ async def compose_video(
 @router.get("/status/{job_id}", response_model=CompositionJobStatusResponse)
 async def get_composition_status(job_id: str) -> CompositionJobStatusResponse:
     """
-    Get the current status of a composition job.
+    Get the current status of a composition job from Firestore.
 
     Args:
         job_id: Unique job identifier from /compose endpoint
@@ -300,14 +315,18 @@ async def get_composition_status(job_id: str) -> CompositionJobStatusResponse:
         CompositionJobStatusResponse with current job status
     """
     try:
-        # Check if job exists
-        if job_id not in _jobs:
+        # Get job from Firestore
+        job_ref = db.collection("composition_jobs").document(job_id)
+        job_doc = job_ref.get()
+        
+        if not job_doc.exists:
             raise HTTPException(
                 status_code=404,
                 detail=f"Job {job_id} not found"
             )
 
-        job_status = _jobs[job_id]
+        job_data = job_doc.to_dict()
+        job_status = CompositionJobStatus(**job_data)
 
         return CompositionJobStatusResponse(
             success=True,
@@ -336,14 +355,18 @@ async def download_video(job_id: str):
         FileResponse with the video file
     """
     try:
-        # Check if job exists
-        if job_id not in _jobs:
+        # Get job from Firestore
+        job_ref = db.collection("composition_jobs").document(job_id)
+        job_doc = job_ref.get()
+        
+        if not job_doc.exists:
             raise HTTPException(
                 status_code=404,
                 detail=f"Job {job_id} not found"
             )
 
-        job = _jobs[job_id]
+        job_data = job_doc.to_dict()
+        job = CompositionJobStatus(**job_data)
 
         # Check if job is completed
         if job.status != CompositionStatus.COMPLETED:
@@ -367,6 +390,7 @@ async def download_video(job_id: str):
             )
 
         # Return file
+        # TODO: In Phase 2, this should redirect to Firebase Storage URL
         return FileResponse(
             path=str(video_path),
             media_type="video/mp4",
@@ -383,22 +407,46 @@ async def download_video(job_id: str):
 
 
 @router.get("/jobs")
-async def list_jobs():
-    """List all composition jobs (for debugging)."""
-    return {
-        "total_jobs": len(_jobs),
-        "jobs": [
-            {
-                "job_id": job.job_id,
-                "status": job.status.value,
-                "progress": job.progress_percent,
-                "total_clips": job.total_clips,
-                "current_step": job.current_step,
-                "video_url": job.video_url,
-                "file_path": job.file_path,
-                "file_size_mb": job.file_size_mb,
-                "duration_seconds": job.duration_seconds
-            }
-            for job in _jobs.values()
-        ]
-    }
+async def list_jobs(req: Request):
+    """List all composition jobs from Firestore (for debugging)."""
+    try:
+        # Optional: Get user_id to filter by user
+        user_id = await get_optional_user_id(req)
+        
+        # Query Firestore
+        jobs_ref = db.collection("composition_jobs")
+        
+        # If user_id provided, filter by user
+        if user_id:
+            jobs_query = jobs_ref.where("user_id", "==", user_id)
+        else:
+            jobs_query = jobs_ref
+        
+        # Limit to recent jobs (last 100)
+        jobs_query = jobs_query.order_by("created_at", direction="DESCENDING").limit(100)
+        
+        jobs_docs = jobs_query.stream()
+        
+        jobs_list = []
+        for doc in jobs_docs:
+            job_data = doc.to_dict()
+            jobs_list.append({
+                "job_id": job_data.get("job_id"),
+                "status": job_data.get("status"),
+                "progress": job_data.get("progress_percent"),
+                "total_clips": job_data.get("total_clips"),
+                "current_step": job_data.get("current_step"),
+                "video_url": job_data.get("video_url"),
+                "file_size_mb": job_data.get("file_size_mb"),
+                "duration_seconds": job_data.get("duration_seconds")
+            })
+        
+        return {
+            "total_jobs": len(jobs_list),
+            "jobs": jobs_list
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to list jobs: {str(e)}"
+        )

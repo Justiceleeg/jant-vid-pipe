@@ -4,6 +4,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.routers import moods, scenes, video, audio, composition
 
+logger = logging.getLogger(__name__)
+
+# Initialize Firebase/Firestore on startup
+try:
+    from app.firestore_database import db as firestore_db
+    logger.info("Firestore database initialized")
+except Exception as e:
+    logger.error(f"Failed to initialize Firestore: {e}")
+    logger.warning("Falling back to in-memory database (data will not persist!)")
+    from app.database import db as firestore_db
+
 # Create FastAPI app
 app = FastAPI(
     title="AI Video Generation Pipeline API",
