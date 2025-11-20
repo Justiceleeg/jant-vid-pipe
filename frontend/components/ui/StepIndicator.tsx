@@ -1,5 +1,7 @@
 'use client';
 
+import { ProjectSwitcher } from '@/components/projects/ProjectSwitcher';
+
 interface StepIndicatorProps {
   currentStep: 1 | 2 | 3 | 4 | 5 | 6;
 }
@@ -16,6 +18,10 @@ const STEPS = [
 export function StepIndicator({ currentStep }: StepIndicatorProps) {
   return (
     <div className="w-full max-w-4xl mx-auto py-8">
+      {/* Project Switcher - Centered above step indicators */}
+      <div className="flex justify-center mb-6">
+        <ProjectSwitcher />
+      </div>
       <div className="flex items-center justify-between">
         {STEPS.map((step, index) => (
           <div key={step.number} className="flex-1 flex items-center">

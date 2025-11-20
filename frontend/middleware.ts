@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
  */
 const isProtectedRoute = createRouteMatcher([
   "/projects(.*)",
+  "/project(.*)",
   "/brand-assets(.*)",
 ]);
 
