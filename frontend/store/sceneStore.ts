@@ -173,6 +173,30 @@ export const useSceneStore = create<SceneState>((set, get) => ({
           }
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Failed to load storyboard';
+          
+          // Check if it's a 404 (storyboard not found)
+          const isNotFound = errorMessage.includes('404') || 
+                            errorMessage.includes('not found') ||
+                            errorMessage.includes('Backend endpoint not found');
+          
+          if (isNotFound) {
+            console.warn('[StoryboardStore] Storyboard not found, clearing reference:', storyboardId);
+            // Reset storyboard state instead of throwing error
+            set({
+              storyboard: null,
+              scenes: [],
+              isLoading: false,
+              error: null, // Don't show error for missing storyboard
+            });
+            // Return a special error that projectStore can handle
+            throw new StoryboardError(
+              'STORYBOARD_NOT_FOUND',
+              ERROR_CODES.STORYBOARD_LOAD_FAILED,
+              false, // Not retryable
+              storyboardId
+            );
+          }
+          
           set({
             error: errorMessage,
             isLoading: false,

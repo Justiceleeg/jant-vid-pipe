@@ -58,4 +58,5 @@ export interface CreateProjectRequest {
 export interface UpdateProjectRequest {
   name?: string;
   thumbnail?: string;
+  storyboardId?: string;
 }

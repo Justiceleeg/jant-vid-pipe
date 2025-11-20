@@ -58,16 +58,9 @@ function createAppStateSnapshot(): AppStateSnapshot {
   return {
     currentStep: appState.currentStep,
     creativeBrief: appState.creativeBrief,
-    uploadedProduct: appState.uploadedProduct,
-    colmap: appState.colmap,
-    nerfTraining: appState.nerfTraining,
-    rendering: appState.rendering,
     moods: appState.moods,
     selectedMoodId: appState.selectedMoodId,
     storyboardCompleted: appState.storyboardCompleted,
-    scenePlan: appState.scenePlan,
-    videoJobId: appState.videoJobId,
-    generatedClips: appState.generatedClips,
     audioUrl: appState.audioUrl,
     compositionJobId: appState.compositionJobId,
     finalVideo: appState.finalVideo,
@@ -86,11 +79,15 @@ function restoreAppState(snapshot: AppStateSnapshot): void {
   appStore.setCurrentStep(currentStep);
   appStore.setCreativeBrief(snapshot.creativeBrief);
   appStore.setMoods(snapshot.moods);
-  if (snapshot.selectedMoodId) appStore.selectMood(snapshot.selectedMoodId);
+  // Set selectedMoodId - if null, clear by setting to empty string
+  appStore.selectMood(snapshot.selectedMoodId || '');
   appStore.setStoryboardCompleted(snapshot.storyboardCompleted);
-  if (snapshot.audioUrl) appStore.setAudioUrl(snapshot.audioUrl);
-  if (snapshot.compositionJobId) appStore.setCompositionJobId(snapshot.compositionJobId);
-  if (snapshot.finalVideo) appStore.setFinalVideo(snapshot.finalVideo);
+  // Always set audioUrl, even if null, to clear previous project's audio
+  appStore.setAudioUrl(snapshot.audioUrl || null);
+  // Always set compositionJobId, even if null
+  appStore.setCompositionJobId(snapshot.compositionJobId || null);
+  // Always set finalVideo, even if null
+  appStore.setFinalVideo(snapshot.finalVideo || null);
 }
 
 export const useProjectStore = create<ProjectStoreState>()(
@@ -232,7 +229,13 @@ export const useProjectStore = create<ProjectStoreState>()(
         if (project.storyboardId) {
           console.log('[ProjectStore] Loading storyboard for project:', project.storyboardId);
           useSceneStore.getState().loadStoryboard(project.storyboardId).catch(err => {
-            console.error('[ProjectStore] Failed to load storyboard:', err);
+            // If storyboard not found, clear the reference
+            if (err instanceof Error && err.message === 'STORYBOARD_NOT_FOUND') {
+              console.warn('[ProjectStore] Storyboard not found, clearing reference from project');
+              get().updateProject(id, { storyboardId: undefined });
+            } else {
+              console.error('[ProjectStore] Failed to load storyboard:', err);
+            }
           });
         } else {
           console.log('[ProjectStore] No storyboard associated with this project yet');
@@ -377,7 +380,14 @@ if (typeof window !== 'undefined') {
         if (currentProject.storyboardId) {
           console.log('[ProjectStore] Restoring storyboard on load:', currentProject.storyboardId);
           useSceneStore.getState().loadStoryboard(currentProject.storyboardId).catch(err => {
-            console.error('[ProjectStore] Failed to restore storyboard:', err);
+            // If storyboard not found, clear the reference
+            const projectStore = useProjectStore.getState();
+            if (err instanceof Error && err.message === 'STORYBOARD_NOT_FOUND') {
+              console.warn('[ProjectStore] Storyboard not found on restore, clearing reference');
+              projectStore.updateProject(currentProject.id, { storyboardId: undefined });
+            } else {
+              console.error('[ProjectStore] Failed to restore storyboard:', err);
+            }
           });
         }
       }
