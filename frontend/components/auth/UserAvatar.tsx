@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { LogOut, Folder, Palette } from "lucide-react";
+import { LogOut, Folder, Palette, User } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 
@@ -91,6 +91,13 @@ export function UserAvatar() {
         >
           <Palette className="mr-2 h-4 w-4" />
           <span>Brand Assets</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => router.push("/character-assets")}
+          className="cursor-pointer"
+        >
+          <User className="mr-2 h-4 w-4" />
+          <span>Characters</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
