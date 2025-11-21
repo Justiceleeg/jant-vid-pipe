@@ -19,7 +19,6 @@ export function FinalComposition({ onBack }: FinalCompositionProps) {
   const {
     audioUrl,
     finalVideo,
-    compositionProgress,
     creativeBrief,
     selectedMoodId,
     moods,
@@ -143,10 +142,10 @@ export function FinalComposition({ onBack }: FinalCompositionProps) {
 
   // Update phase progress based on composition progress
   useEffect(() => {
-    if (currentPhase === 'composition' && compositionProgress > 0) {
-      setPhaseProgress((prev) => ({ ...prev, composition: compositionProgress }));
+    if (currentPhase === 'composition' && jobStatus?.progress_percent) {
+      setPhaseProgress((prev) => ({ ...prev, composition: jobStatus.progress_percent }));
     }
-  }, [compositionProgress, currentPhase]);
+  }, [jobStatus?.progress_percent, currentPhase]);
 
   // Auto-start composition when component mounts (if not already started)
   useEffect(() => {

@@ -27,7 +27,7 @@ export const useNeRFTraining = () => {
         status: "processing",
         progress: 0,
         stage_progress: 0,
-        error: null,
+        error: undefined,
       });
 
       console.log('[Training] Making API call to:', `${API_URL}/api/nerf/train`);
@@ -100,7 +100,7 @@ export const useNeRFTraining = () => {
         progress: data.progress,
         stage_progress: 0,
         estimated_time_remaining: data.estimated_time_remaining,
-        error: null,
+        error: undefined,
       });
 
       setIsPolling(true);

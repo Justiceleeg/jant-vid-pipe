@@ -31,7 +31,7 @@ export function MoodBoard({
   
   // Check if the selected mood has loaded at least one image
   const selectedMood = selectedMoodId ? moods.find(m => m.id === selectedMoodId) : null;
-  const selectedMoodIsLoaded = selectedMood && selectedMood.images.some(img => img.success && img.url);
+  const selectedMoodIsLoaded = selectedMood ? selectedMood.images.some(img => img.success && img.url) : false;
   
   // Can continue when not loading and the selected mood has at least one image
   const canContinue = !isLoading && selectedMoodIsLoaded;

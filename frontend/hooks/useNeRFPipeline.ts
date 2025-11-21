@@ -13,7 +13,8 @@ import { useRendering } from './useRendering';
  * Automatically transitions between stages as each completes.
  */
 export const useNeRFPipeline = () => {
-  const { colmap, nerfTraining, rendering } = useAppStore();
+  // Note: colmap, nerfTraining, and rendering state are managed by their respective hooks
+  // and accessed via colmapState, trainingState, and renderingState below
   
   const { start: startCOLMAP, colmap: colmapState } = useCOLMAP();
   const { startTraining, trainingState } = useNeRFTraining();
