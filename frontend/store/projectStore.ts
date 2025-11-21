@@ -107,6 +107,8 @@ export const useProjectStore = create<ProjectStoreState>()(
           name,
           createdAt: now,
           updatedAt: now,
+          brandAssetIds: request?.brandAssetIds || [],
+          characterAssetIds: request?.characterAssetIds || [],
           appState: createAppStateSnapshot(),
         };
 
@@ -119,7 +121,12 @@ export const useProjectStore = create<ProjectStoreState>()(
         useAppStore.getState().reset();
         useSceneStore.getState().reset();
 
-        console.log('[ProjectStore] Created new project:', { id: projectId, name });
+        console.log('[ProjectStore] Created new project:', { 
+          id: projectId, 
+          name,
+          brandAssetIds: newProject.brandAssetIds.length,
+          characterAssetIds: newProject.characterAssetIds.length,
+        });
 
         return projectId;
       },
