@@ -15,8 +15,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { MoreVertical, Plus } from 'lucide-react';
+import { MoreVertical, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { STEP_LABELS } from '@/lib/steps';
+import { AssetSelectionStep } from '@/components/projects/AssetSelectionStep';
+import { listBrandAssets, getBrandAssetImageUrl } from '@/lib/api/brand';
+import { listCharacterAssets, getCharacterAssetImageUrl } from '@/lib/api/character';
+import type { BrandAssetStatus } from '@/types/brand.types';
+import type { CharacterAssetStatus } from '@/types/character.types';
 
 export default function ProjectsPage() {
   const router = useRouter();
@@ -29,6 +34,14 @@ export default function ProjectsPage() {
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [projectName, setProjectName] = useState('');
   const [deleteConfirmName, setDeleteConfirmName] = useState('');
+  
+  // Create project modal state
+  const [createStep, setCreateStep] = useState<'name' | 'brand' | 'character'>('name');
+  const [selectedBrandAssetIds, setSelectedBrandAssetIds] = useState<string[]>([]);
+  const [selectedCharacterAssetIds, setSelectedCharacterAssetIds] = useState<string[]>([]);
+  const [brandAssets, setBrandAssets] = useState<BrandAssetStatus[]>([]);
+  const [characterAssets, setCharacterAssets] = useState<CharacterAssetStatus[]>([]);
+  const [isLoadingAssets, setIsLoadingAssets] = useState(false);
 
   // Handle hydration - only access localStorage after mount
   useEffect(() => {
@@ -50,13 +63,98 @@ export default function ProjectsPage() {
       )
     : [];
 
-  const handleCreateProject = () => {
-    const name = projectName.trim() || undefined;
-    const projectId = createProject({ name });
+  const handleOpenCreateModal = async () => {
+    setIsLoadingAssets(true);
+    setCreateStep('name');
+    setSelectedBrandAssetIds([]);
+    setSelectedCharacterAssetIds([]);
     setProjectName('');
+    
+    try {
+      // Fetch both asset types
+      const [brands, characters] = await Promise.all([
+        listBrandAssets(),
+        listCharacterAssets(),
+      ]);
+      
+      setBrandAssets(brands);
+      setCharacterAssets(characters);
+      
+      // Check if user has assets - redirect if missing
+      if (brands.length === 0) {
+        router.push('/brand-assets?from=create-project');
+        setIsLoadingAssets(false);
+        return;
+      }
+      
+      if (characters.length === 0) {
+        router.push('/character-assets?from=create-project');
+        setIsLoadingAssets(false);
+        return;
+      }
+      
+      // Both exist, show modal
+      setShowCreateModal(true);
+    } catch (error) {
+      console.error('Failed to load assets:', error);
+      // Still show modal, but assets will be empty
+      setShowCreateModal(true);
+    } finally {
+      setIsLoadingAssets(false);
+    }
+  };
+
+  const handleCreateProject = () => {
+    // Validate selections
+    if (selectedBrandAssetIds.length === 0 || selectedCharacterAssetIds.length === 0) {
+      return; // Should not happen due to button disable, but safety check
+    }
+    
+    const name = projectName.trim() || undefined;
+    const projectId = createProject({ 
+      name,
+      brandAssetIds: selectedBrandAssetIds,
+      characterAssetIds: selectedCharacterAssetIds,
+    });
+    
+    // Reset state
+    setProjectName('');
+    setSelectedBrandAssetIds([]);
+    setSelectedCharacterAssetIds([]);
+    setCreateStep('name');
     setShowCreateModal(false);
+    
     // Route to chat page
     router.push(`/project/${projectId}/chat`);
+  };
+
+  const handleNextStep = () => {
+    if (createStep === 'name') {
+      setCreateStep('brand');
+    } else if (createStep === 'brand') {
+      if (selectedBrandAssetIds.length > 0) {
+        setCreateStep('character');
+      }
+    }
+  };
+
+  const handleBackStep = () => {
+    if (createStep === 'character') {
+      setCreateStep('brand');
+    } else if (createStep === 'brand') {
+      setCreateStep('name');
+    }
+  };
+
+  const canProceedToNext = () => {
+    if (createStep === 'name') {
+      return true; // Name is optional
+    } else if (createStep === 'brand') {
+      return selectedBrandAssetIds.length > 0;
+    } else if (createStep === 'character') {
+      return selectedCharacterAssetIds.length > 0;
+    }
+    return false;
   };
 
   const handleRenameProject = () => {
@@ -133,7 +231,7 @@ export default function ProjectsPage() {
                 Manage and view all your video generation projects
               </p>
             </div>
-            <Button onClick={() => setShowCreateModal(true)} size="lg">
+            <Button onClick={handleOpenCreateModal} size="lg" disabled={isLoadingAssets}>
               <Plus className="w-4 h-4 mr-2" />
               Create New Project
             </Button>
@@ -150,7 +248,7 @@ export default function ProjectsPage() {
               <p className="text-muted-foreground text-center mb-4">
                 No projects yet. Start creating your first video project!
               </p>
-              <Button onClick={() => setShowCreateModal(true)}>
+              <Button onClick={handleOpenCreateModal} disabled={isLoadingAssets}>
                 <Plus className="w-4 h-4 mr-2" />
                 Create Project
               </Button>
@@ -240,45 +338,107 @@ export default function ProjectsPage() {
       {/* Create Project Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <Card className="w-full max-w-md mx-4">
+          <Card className="w-full max-w-2xl mx-4 max-h-[90vh] overflow-hidden flex flex-col">
             <CardHeader>
               <CardTitle>Create New Project</CardTitle>
               <CardDescription>
-                Enter a name for your project (optional - will auto-generate if left blank)
+                {createStep === 'name' && 'Enter a name for your project (optional - will auto-generate if left blank)'}
+                {createStep === 'brand' && 'Select the brand assets to use in this project'}
+                {createStep === 'character' && 'Select the character assets to use in this project'}
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="project-name">Project Name</Label>
-                <Input
-                  id="project-name"
-                  value={projectName}
-                  onChange={(e) => setProjectName(e.target.value)}
-                  placeholder="Project 1"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      handleCreateProject();
-                    } else if (e.key === 'Escape') {
-                      setShowCreateModal(false);
-                      setProjectName('');
-                    }
-                  }}
-                  autoFocus
+            <CardContent className="space-y-4 flex-1 overflow-y-auto">
+              {createStep === 'name' && (
+                <div>
+                  <Label htmlFor="project-name">Project Name</Label>
+                  <Input
+                    id="project-name"
+                    value={projectName}
+                    onChange={(e) => setProjectName(e.target.value)}
+                    placeholder="Project 1"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && canProceedToNext()) {
+                        handleNextStep();
+                      } else if (e.key === 'Escape') {
+                        setShowCreateModal(false);
+                        setProjectName('');
+                        setCreateStep('name');
+                      }
+                    }}
+                    autoFocus
+                  />
+                </div>
+              )}
+              
+              {createStep === 'brand' && (
+                <AssetSelectionStep
+                  assetType="brand"
+                  selectedIds={selectedBrandAssetIds}
+                  onSelectionChange={setSelectedBrandAssetIds}
+                  onNext={handleNextStep}
+                  onBack={handleBackStep}
+                  isLoading={isLoadingAssets}
+                  assets={brandAssets}
+                  getImageUrl={getBrandAssetImageUrl}
                 />
+              )}
+              
+              {createStep === 'character' && (
+                <AssetSelectionStep
+                  assetType="character"
+                  selectedIds={selectedCharacterAssetIds}
+                  onSelectionChange={setSelectedCharacterAssetIds}
+                  onNext={handleCreateProject}
+                  onBack={handleBackStep}
+                  isLoading={isLoadingAssets}
+                  assets={characterAssets}
+                  getImageUrl={getCharacterAssetImageUrl}
+                />
+              )}
+            </CardContent>
+            <div className="flex justify-between items-center p-6 border-t">
+              <div>
+                {createStep !== 'name' && (
+                  <Button
+                    variant="outline"
+                    onClick={handleBackStep}
+                  >
+                    <ChevronLeft className="w-4 h-4 mr-2" />
+                    Back
+                  </Button>
+                )}
               </div>
-              <div className="flex justify-end gap-2">
+              <div className="flex gap-2">
                 <Button
                   variant="outline"
                   onClick={() => {
                     setShowCreateModal(false);
                     setProjectName('');
+                    setSelectedBrandAssetIds([]);
+                    setSelectedCharacterAssetIds([]);
+                    setCreateStep('name');
                   }}
                 >
                   Cancel
                 </Button>
-                <Button onClick={handleCreateProject}>Create</Button>
+                {createStep === 'character' ? (
+                  <Button 
+                    onClick={handleCreateProject}
+                    disabled={!canProceedToNext()}
+                  >
+                    Create Project
+                  </Button>
+                ) : (
+                  <Button 
+                    onClick={handleNextStep}
+                    disabled={!canProceedToNext()}
+                  >
+                    Next
+                    <ChevronRight className="w-4 h-4 ml-2" />
+                  </Button>
+                )}
               </div>
-            </CardContent>
+            </div>
           </Card>
         </div>
       )}

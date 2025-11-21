@@ -185,6 +185,10 @@ Example format:
         # Generate storyboard ID first (needed for scenes)
         storyboard_id = str(uuid.uuid4())
 
+        # Don't set assets by default - let users toggle them per scene
+        # Assets are available from project but not automatically assigned
+        # Users can enable them per scene using the toggle UI
+
         # Create scenes first (they need the storyboard_id)
         scenes = []
         for scene_data in scene_texts:
@@ -194,6 +198,8 @@ Example format:
                 text=scene_data["text"],
                 style_prompt=scene_data["style_prompt"],
                 video_duration=scene_data["duration"],
+                brand_asset_id=None,  # Not set by default - user can toggle per scene
+                character_asset_id=None,  # Not set by default - user can toggle per scene
                 generation_status=SceneGenerationStatus(
                     image="pending",
                     video="pending"
@@ -205,6 +211,7 @@ Example format:
         # (Pydantic validation requires scene_order to have at least 5 items)
         storyboard = Storyboard(
             storyboard_id=storyboard_id,
+            project_id=request.project_id,
             creative_brief=creative_brief_str,
             selected_mood=request.selected_mood,
             scene_order=[scene.id for scene in scenes],

@@ -18,12 +18,17 @@ from app.services.storyboard_service import storyboard_service
 from app.services.product_service import get_product_service
 from app.services.replicate_service import get_replicate_service
 from app.services.metrics_service import get_composite_metrics
+from app.services.brand_service import get_brand_service
+from app.services.character_service import get_character_service
 from app.database import db
 from app.config import settings
 import json
 import asyncio
 from datetime import datetime
 import replicate
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/api/storyboards",
@@ -416,22 +421,252 @@ async def disable_product_composite(
 
 
 # ============================================================================
+# Asset Toggle Endpoints
+# ============================================================================
+
+class EnableBrandAssetRequest(BaseModel):
+    """Request to enable brand asset for a scene."""
+    brand_asset_id: str
+
+
+class EnableCharacterAssetRequest(BaseModel):
+    """Request to enable character asset for a scene."""
+    character_asset_id: str
+
+
+@router.post("/{storyboard_id}/scenes/{scene_id}/brand-asset")
+async def enable_brand_asset(
+    storyboard_id: str,
+    scene_id: str,
+    request: EnableBrandAssetRequest
+):
+    """
+    Enable brand asset for a scene.
+    
+    This marks the scene to include the brand asset in image generation.
+    If the scene already has an image, it will need to be regenerated.
+    """
+    try:
+        # Validate brand asset exists
+        brand_service = get_brand_service()
+        brand_asset = brand_service.get_brand_asset(request.brand_asset_id)
+        
+        if not brand_asset:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Brand asset {request.brand_asset_id} not found"
+            )
+        
+        # Get scene
+        scene = db.get_scene(scene_id)
+        if not scene:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Scene {scene_id} not found"
+            )
+        
+        # Update scene
+        scene.brand_asset_id = request.brand_asset_id
+        
+        # If scene already has an image, mark for regeneration
+        if scene.image_url:
+            scene.generation_status.image = "pending"
+            scene.image_url = None
+        
+        # Save scene
+        db.update_scene(scene_id, scene)
+        
+        return {
+            "success": True,
+            "scene": scene,
+            "message": "Brand asset enabled"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to enable brand asset: {str(e)}"
+        )
+
+
+@router.delete("/{storyboard_id}/scenes/{scene_id}/brand-asset")
+async def disable_brand_asset(
+    storyboard_id: str,
+    scene_id: str
+):
+    """
+    Disable brand asset for a scene.
+    
+    Removes brand asset from the scene. If the scene has an image with brand asset,
+    it will need to be regenerated.
+    """
+    try:
+        # Get scene
+        scene = db.get_scene(scene_id)
+        if not scene:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Scene {scene_id} not found"
+            )
+        
+        # Update scene
+        scene.brand_asset_id = None
+        
+        # If scene has an image, mark for regeneration
+        if scene.image_url:
+            scene.generation_status.image = "pending"
+            scene.image_url = None
+        
+        # Save scene
+        db.update_scene(scene_id, scene)
+        
+        return {
+            "success": True,
+            "scene": scene,
+            "message": "Brand asset disabled"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to disable brand asset: {str(e)}"
+        )
+
+
+@router.post("/{storyboard_id}/scenes/{scene_id}/character-asset")
+async def enable_character_asset(
+    storyboard_id: str,
+    scene_id: str,
+    request: EnableCharacterAssetRequest
+):
+    """
+    Enable character asset for a scene.
+    
+    This marks the scene to include the character asset in image generation.
+    If the scene already has an image, it will need to be regenerated.
+    """
+    try:
+        # Validate character asset exists
+        character_service = get_character_service()
+        character_asset = character_service.get_character_asset(request.character_asset_id)
+        
+        if not character_asset:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Character asset {request.character_asset_id} not found"
+            )
+        
+        # Get scene
+        scene = db.get_scene(scene_id)
+        if not scene:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Scene {scene_id} not found"
+            )
+        
+        # Update scene
+        scene.character_asset_id = request.character_asset_id
+        
+        # If scene already has an image, mark for regeneration
+        if scene.image_url:
+            scene.generation_status.image = "pending"
+            scene.image_url = None
+        
+        # Save scene
+        db.update_scene(scene_id, scene)
+        
+        return {
+            "success": True,
+            "scene": scene,
+            "message": "Character asset enabled"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to enable character asset: {str(e)}"
+        )
+
+
+@router.delete("/{storyboard_id}/scenes/{scene_id}/character-asset")
+async def disable_character_asset(
+    storyboard_id: str,
+    scene_id: str
+):
+    """
+    Disable character asset for a scene.
+    
+    Removes character asset from the scene. If the scene has an image with character asset,
+    it will need to be regenerated.
+    """
+    try:
+        # Get scene
+        scene = db.get_scene(scene_id)
+        if not scene:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Scene {scene_id} not found"
+            )
+        
+        # Update scene
+        scene.character_asset_id = None
+        
+        # If scene has an image, mark for regeneration
+        if scene.image_url:
+            scene.generation_status.image = "pending"
+            scene.image_url = None
+        
+        # Save scene
+        db.update_scene(scene_id, scene)
+        
+        return {
+            "success": True,
+            "scene": scene,
+            "message": "Character asset disabled"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to disable character asset: {str(e)}"
+        )
+
+
+# ============================================================================
 # Image Generation Endpoints
 # ============================================================================
 
 async def generate_image_task(scene_id: str):
     """Background task to generate image using Replicate."""
-    print(f"[Image Generation] Starting image generation for scene {scene_id}")
+    print(f"\n{'='*80}")
+    print(f"[Image Generation] 🎨 STARTING IMAGE GENERATION")
+    print(f"{'='*80}")
+    print(f"[Image Generation] Scene ID: {scene_id}")
+    
     try:
         scene = db.get_scene(scene_id)
         if not scene:
-            print(f"[Image Generation] Scene {scene_id} not found")
+            print(f"[Image Generation] ❌ ERROR: Scene {scene_id} not found")
             return
+
+        print(f"[Image Generation] Scene found:")
+        print(f"  - Storyboard ID: {scene.storyboard_id}")
+        print(f"  - Brand Asset ID: {scene.brand_asset_id or '(none)'}")
+        print(f"  - Character Asset ID: {scene.character_asset_id or '(none)'}")
+        print(f"  - Product Composite: {scene.use_product_composite}")
 
         # Update status to generating
         scene.generation_status.image = "generating"
         db.update_scene(scene_id, scene)
-        print(f"[Image Generation] Updated scene {scene_id} status to 'generating'")
+        print(f"[Image Generation] Status updated to 'generating'")
 
         # Get Replicate token
         replicate_token = settings.get_replicate_token()
@@ -439,14 +674,16 @@ async def generate_image_task(scene_id: str):
             # No API key - use placeholder
             print(f"[Image Generation] No Replicate token, using placeholder for scene {scene_id}")
             scene.generation_status.image = "complete"
-            scene.image_url = f"https://via.placeholder.com/1080x1920/000000/FFFFFF?text=Scene+{scene_id[:8]}"
+            scene.image_url = f"https://via.placeholder.com/1920x1080/000000/FFFFFF?text=Scene+{scene_id[:8]}"
             scene.state = "image"
             db.update_scene(scene_id, scene)
             print(f"[Image Generation] Placeholder image set for scene {scene_id}")
             return
 
-        # Check if product compositing is enabled
+        # Determine which generation path to use
+        print(f"\n[Image Generation] 🔀 DETERMINING GENERATION PATH:")
         if scene.use_product_composite and scene.product_id:
+            print(f"  → Using PRODUCT COMPOSITE path")
             # Product compositing path
             print(f"[Image Generation] Product compositing enabled for scene {scene_id}")
             
@@ -478,8 +715,8 @@ async def generate_image_task(scene_id: str):
                             scene_text=scene.text,
                             style_prompt=scene.style_prompt,
                             product_image_path=str(product_image_path),
-                            width=1080,
-                            height=1920
+                            width=1920,
+                            height=1080
                         ),
                         timeout=settings.KONTEXT_TIMEOUT_SECONDS
                     )
@@ -496,8 +733,8 @@ async def generate_image_task(scene_id: str):
                         scene_text=scene.text,
                         style_prompt=scene.style_prompt,
                         product_image_path=str(product_image_path),
-                        width=1080,
-                        height=1920
+                        width=1920,
+                        height=1080
                     )
                     
                 except Exception as e:
@@ -512,8 +749,8 @@ async def generate_image_task(scene_id: str):
                         scene_text=scene.text,
                         style_prompt=scene.style_prompt,
                         product_image_path=str(product_image_path),
-                        width=1080,
-                        height=1920
+                        width=1920,
+                        height=1080
                     )
             else:
                 print(f"[Image Generation] Using PIL composite method")
@@ -525,7 +762,77 @@ async def generate_image_task(scene_id: str):
                     width=1080,
                     height=1920
                 )
+        elif scene.brand_asset_id or scene.character_asset_id:
+            logger.info("  → Using ASSET-BASED path (nano-banana-pro)")
+            # Asset-based generation using nano-banana-pro
+            logger.info("="*80)
+            logger.info("🎨 ASSET-BASED GENERATION USING google/nano-banana-pro")
+            logger.info("="*80)
+            logger.info(f"Scene ID: {scene_id}")
+            logger.info(f"Storyboard ID: {scene.storyboard_id}")
+            
+            # Log Scene Description
+            logger.info("📝 SCENE DESCRIPTION:")
+            logger.info(f"  Text: {scene.text}")
+            logger.info(f"  Style Prompt: {scene.style_prompt}")
+            
+            replicate_service = get_replicate_service()
+            brand_service = get_brand_service()
+            character_service = get_character_service()
+            
+            # Get asset image URLs and metadata
+            brand_asset_image_url = None
+            brand_asset_filename = None
+            character_asset_image_url = None
+            character_asset_filename = None
+            
+            if scene.brand_asset_id:
+                logger.info("🏷️  BRAND ASSET:")
+                logger.info(f"  Asset ID: {scene.brand_asset_id}")
+                brand_asset = brand_service.get_brand_asset(scene.brand_asset_id)
+                if brand_asset:
+                    # Use public URL if available (for external APIs), otherwise fall back to full URL
+                    brand_asset_image_url = brand_asset.public_url or settings.to_full_url(brand_asset.url)
+                    brand_asset_filename = brand_asset.metadata.get("filename", "brand asset")
+                    logger.info(f"  Filename: {brand_asset_filename}")
+                    logger.info(f"  URL: {brand_asset_image_url}")
+                    logger.info(f"  Using public URL: {bool(brand_asset.public_url)}")
+                else:
+                    logger.warning(f"  ⚠️  WARNING: Brand asset {scene.brand_asset_id} not found")
+            
+            if scene.character_asset_id:
+                logger.info("👤 CHARACTER ASSET:")
+                logger.info(f"  Asset ID: {scene.character_asset_id}")
+                character_asset = character_service.get_character_asset(scene.character_asset_id)
+                if character_asset:
+                    # Use public URL if available (for external APIs), otherwise fall back to full URL
+                    character_asset_image_url = character_asset.public_url or settings.to_full_url(character_asset.url)
+                    character_asset_filename = character_asset.metadata.get("filename", "character asset")
+                    logger.info(f"  Filename: {character_asset_filename}")
+                    logger.info(f"  URL: {character_asset_image_url}")
+                    logger.info(f"  Using public URL: {bool(character_asset.public_url)}")
+                else:
+                    logger.warning(f"  ⚠️  WARNING: Character asset {scene.character_asset_id} not found")
+            
+            # Generate image with assets using nano-banana-pro
+            # 16:9 aspect ratio, 1K resolution (1920x1080), PNG format
+            logger.info("🚀 Calling generate_scene_with_assets()...")
+            image_url = await replicate_service.generate_scene_with_assets(
+                scene_text=scene.text,
+                style_prompt=scene.style_prompt,
+                brand_asset_image_url=brand_asset_image_url,
+                character_asset_image_url=character_asset_image_url,
+                brand_asset_filename=brand_asset_filename,
+                character_asset_filename=character_asset_filename,
+                width=1920,
+                height=1080
+            )
+            logger.info("✅ RESULTING IMAGE URL:")
+            logger.info(f"  {image_url}")
+            logger.info("="*80)
+        
         else:
+            print(f"  → Using STANDARD path (flux-schnell)")
             # Standard scene generation (existing logic)
             # Generate image using Replicate
             # Using Flux model for high-quality image generation
@@ -680,35 +987,58 @@ async def regenerate_scene_image(
 
 async def generate_video_task(scene_id: str):
     """Background task to generate video using Replicate."""
+    print(f"\n{'='*80}")
+    print(f"[Video Generation] Starting video generation for scene {scene_id}")
+    print(f"{'='*80}")
+    
     try:
         scene = db.get_scene(scene_id)
         if not scene:
+            print(f"[Video Generation] ERROR: Scene {scene_id} not found")
             return
+
+        print(f"[Video Generation] Scene details:")
+        print(f"  - Storyboard ID: {scene.storyboard_id}")
+        print(f"  - Scene text: {scene.text[:100]}...")
+        print(f"  - Video duration: {scene.video_duration}s")
+        print(f"  - Image URL: {scene.image_url}")
 
         # Update status to generating
         scene.generation_status.video = "generating"
         db.update_scene(scene_id, scene)
+        print(f"[Video Generation] Status updated to 'generating'")
 
         # Get Replicate token
         replicate_token = settings.get_replicate_token()
-        if not replicate_token or not scene.image_url:
-            # No API key or no image - use placeholder
+        if not replicate_token:
+            print(f"[Video Generation] WARNING: No Replicate token found, using placeholder")
             scene.generation_status.video = "complete"
             scene.video_url = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
             scene.state = "video"
+            db.update_scene(scene_id, scene)
+            print(f"[Video Generation] Placeholder video set")
+            return
+
+        if not scene.image_url:
+            print(f"[Video Generation] ERROR: No image URL found for scene {scene_id}")
+            scene.generation_status.video = "error"
+            scene.error_message = "Cannot generate video without an image"
             db.update_scene(scene_id, scene)
             return
 
         # Generate video using Replicate (image-to-video model)
         # Using ByteDance SeeDance-1 Pro Fast - supports longer videos
+        print(f"[Video Generation] Initializing Replicate client")
         client = replicate.Client(api_token=replicate_token)
         
         # Convert relative image URL to full URL for Replicate API
         full_image_url = settings.to_full_url(scene.image_url)
+        print(f"[Video Generation] Image URL: {full_image_url[:100]}...")
         
         # For localhost URLs, Replicate can't access them, so we need to convert to base64
         # This is necessary for local development
         if "localhost" in full_image_url or "127.0.0.1" in full_image_url:
+            print(f"[Video Generation] Detected localhost URL, converting to base64")
             # Extract the local file path from the URL
             # e.g., http://localhost:8000/uploads/composites/file.png -> uploads/composites/file.png
             from pathlib import Path
@@ -716,28 +1046,61 @@ async def generate_video_task(scene_id: str):
             
             local_path = full_image_url.split("/uploads/", 1)[-1]
             local_file_path = f"uploads/{local_path}"
+            print(f"[Video Generation] Local file path: {local_file_path}")
             
             # Check if file exists locally
             if Path(local_file_path).exists():
                 try:
                     # Convert to base64 data URI
+                    print(f"[Video Generation] Converting image to base64...")
                     with open(local_file_path, 'rb') as f:
                         image_data = f.read()
                     base64_data = base64.b64encode(image_data).decode('utf-8')
                     full_image_url = f"data:image/png;base64,{base64_data}"
-                    print(f"[Video Generation] Converted localhost URL to base64 data URI for scene {scene_id}")
+                    print(f"[Video Generation] ✓ Converted to base64 data URI (size: {len(base64_data)} chars)")
                 except Exception as e:
-                    print(f"[Video Generation] Failed to convert to base64: {e}, will try URL anyway")
+                    print(f"[Video Generation] WARNING: Failed to convert to base64: {e}, will try URL anyway")
+            else:
+                print(f"[Video Generation] WARNING: Local file not found at {local_file_path}")
         
+        # Prepare input parameters for Seedance
+        # Clamp duration to valid range (3-10 seconds)
+        clamped_duration = min(max(int(scene.video_duration), 3), 10)
+        
+        # Set resolution based on environment
+        if settings.is_development():
+            resolution = "720p"  # Faster for dev
+        else:
+            resolution = "1080p"  # Higher quality for prod
+        
+        input_params = {
+            "image": full_image_url,
+            "prompt": scene.text,
+            "duration": clamped_duration,
+            "resolution": resolution,  # 480p, 720p, or 1080p
+            "aspect_ratio": "16:9",  # Landscape format (1080p)
+        }
+        
+        print(f"[Video Generation] Calling Replicate API:")
+        print(f"  - Model: bytedance/seedance-1-pro-fast")
+        print(f"  - Prompt: {scene.text[:100]}...")
+        print(f"  - Duration: {clamped_duration}s (clamped from {scene.video_duration}s)")
+        print(f"  - Resolution: {resolution}")
+        print(f"  - Aspect Ratio: 16:9")
+        print(f"  - Image: {'base64 data URI' if full_image_url.startswith('data:') else full_image_url[:80]}...")
+        print(f"[Video Generation] Sending request to Replicate...")
+        
+        start_time = asyncio.get_event_loop().time()
         output = await asyncio.to_thread(
             client.run,
             "bytedance/seedance-1-pro-fast",
-            input={
-                "image": full_image_url,
-                "prompt": scene.text,
-                "duration": scene.video_duration,
-            }
+            input=input_params
         )
+        elapsed_time = asyncio.get_event_loop().time() - start_time
+
+        print(f"[Video Generation] ✓ Replicate API call completed in {elapsed_time:.2f}s")
+        print(f"[Video Generation] Output type: {type(output)}")
+        print(f"[Video Generation] Output: {output}")
 
         # Extract video URL from output
         # Video output might be a list or a single URL
@@ -747,22 +1110,39 @@ async def generate_video_task(scene_id: str):
             else:
                 video_url = str(output) if hasattr(output, '__str__') else output
 
+            print(f"[Video Generation] ✓ Video URL extracted: {video_url[:100]}...")
+
             # Update scene with video URL
             scene.video_url = video_url
             scene.generation_status.video = "complete"
             scene.state = "video"
             scene.error_message = None
+            db.update_scene(scene_id, scene)
+            
+            print(f"[Video Generation] ✓ Scene updated successfully")
+            print(f"[Video Generation] Status: {scene.generation_status.video}")
+            print(f"[Video Generation] State: {scene.state}")
         else:
             raise Exception("No video generated")
 
-        db.update_scene(scene_id, scene)
+        print(f"[Video Generation] ✓ Video generation completed successfully for scene {scene_id}")
+        print(f"{'='*80}\n")
 
     except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"[Video Generation] ✗ ERROR: Video generation failed for scene {scene_id}")
+        print(f"[Video Generation] Error: {str(e)}")
+        print(f"[Video Generation] Traceback:\n{error_trace}")
+        
         scene = db.get_scene(scene_id)
         if scene:
             scene.generation_status.video = "error"
             scene.error_message = f"Video generation failed: {str(e)}"
             db.update_scene(scene_id, scene)
+            print(f"[Video Generation] Scene error status updated")
+        
+        print(f"{'='*80}\n")
 
 
 @router.post("/{storyboard_id}/scenes/{scene_id}/video/generate", response_model=SceneUpdateResponse)

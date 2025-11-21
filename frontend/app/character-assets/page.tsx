@@ -1,19 +1,19 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { layoutClasses } from "@/lib/layout";
 import { cn } from "@/lib/utils";
-import { BrandAssetUpload } from '@/components/brand/BrandAssetUpload';
-import { BrandAssetList } from '@/components/brand/BrandAssetList';
+import { CharacterAssetUpload } from '@/components/character/CharacterAssetUpload';
+import { CharacterAssetList } from '@/components/character/CharacterAssetList';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 
 /**
- * Protected brand assets page - brand asset management interface
+ * Protected character assets page - character asset management interface
  * This route is protected by Clerk middleware
  */
-export default function BrandAssetsPage() {
+export default function CharacterAssetsPage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -51,10 +51,10 @@ export default function BrandAssetsPage() {
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-1">
-                    Brand Assets Required
+                    Character Assets Required
                   </h3>
                   <p className="text-sm text-blue-800 dark:text-blue-200">
-                    You need at least one brand asset to create a project. Upload your brand assets below, then return to create your project.
+                    You need at least one character asset to create a project. Upload your character assets below, then return to create your project.
                   </p>
                 </div>
                 <Button
@@ -70,17 +70,17 @@ export default function BrandAssetsPage() {
             </div>
           )}
           <div>
-            <h1 className="text-3xl font-bold mb-2">Brand Assets</h1>
+            <h1 className="text-3xl font-bold mb-2">Character Assets</h1>
             <p className="text-muted-foreground">
-              Manage your brand assets including logos, colors, fonts, and style guidelines
+              Manage your character assets for use in ads
             </p>
           </div>
 
           {/* Upload Section */}
-          <BrandAssetUpload onUploadComplete={handleUploadComplete} />
+          <CharacterAssetUpload onUploadComplete={handleUploadComplete} />
 
           {/* Asset List Section */}
-          <BrandAssetList 
+          <CharacterAssetList 
             onAssetDeleted={handleAssetDeleted}
             refreshTrigger={refreshTrigger}
           />
@@ -89,3 +89,5 @@ export default function BrandAssetsPage() {
     </div>
   );
 }
+
+

@@ -13,6 +13,8 @@ export interface Project {
   updatedAt: string; // ISO 8601 date string
   thumbnail?: string; // Base64 or URL to thumbnail image
   storyboardId?: string; // Reference to storyboard (not full state)
+  brandAssetIds?: string[]; // Array of selected brand asset IDs (optional for backward compatibility)
+  characterAssetIds?: string[]; // Array of selected character asset IDs (optional for backward compatibility)
   appState: AppStateSnapshot; // Full snapshot of appStore state
 }
 
@@ -50,6 +52,8 @@ export interface AppStateSnapshot {
  */
 export interface CreateProjectRequest {
   name?: string; // Optional - will auto-generate if not provided
+  brandAssetIds?: string[]; // Array of selected brand asset IDs
+  characterAssetIds?: string[]; // Array of selected character asset IDs
 }
 
 /**
@@ -59,4 +63,6 @@ export interface UpdateProjectRequest {
   name?: string;
   thumbnail?: string;
   storyboardId?: string;
+  brandAssetIds?: string[];
+  characterAssetIds?: string[];
 }
