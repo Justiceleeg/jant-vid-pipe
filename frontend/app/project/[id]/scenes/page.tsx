@@ -6,6 +6,7 @@ import { StoryboardCarousel } from '@/components/storyboard';
 import { useStoryboard, useStoryboardRecovery } from '@/hooks/useStoryboard';
 import { useAppStore } from '@/store/appStore';
 import { useProjectStore } from '@/store/projectStore';
+import { useSceneStore } from '@/store/sceneStore';
 import { ToastProvider, useToast } from '@/components/ui/Toast';
 import { ErrorAlert } from '@/components/ui/ErrorAlert';
 import { STEPS } from '@/lib/steps';
@@ -113,13 +114,15 @@ function ScenesPageContent() {
   useEffect(() => {
     if (scenes.length > 0 && currentProjectId) {
       const firstSceneWithImage = scenes.find(scene => scene.image_url);
-      if (firstSceneWithImage) {
+      if (firstSceneWithImage && firstSceneWithImage.image_url) {
         const project = getCurrentProject();
         // Update thumbnail if it's different or doesn't exist
-        if (project && project.thumbnail !== firstSceneWithImage.image_url) {
+        // Convert null to undefined to match UpdateProjectRequest type
+        const thumbnailUrl = firstSceneWithImage.image_url ?? undefined;
+        if (project && project.thumbnail !== thumbnailUrl) {
           console.log('[Page] Updating project thumbnail with scene image');
           useProjectStore.getState().updateProject(currentProjectId, {
-            thumbnail: firstSceneWithImage.image_url
+            thumbnail: thumbnailUrl
           });
         }
       }
@@ -409,7 +412,7 @@ function ScenesPageContent() {
           <div className="animate-slideUp animation-delay-100">
             <ErrorAlert
               error={error}
-              onDismiss={() => useStoryboard.getState().setError(null)}
+              onDismiss={() => useSceneStore.getState().setError(null)}
               showRetry={false}
             />
           </div>

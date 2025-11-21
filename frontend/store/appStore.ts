@@ -3,6 +3,8 @@ import type { StepName } from '@/lib/steps';
 import { STEPS } from '@/lib/steps';
 import type { CreativeBrief } from '@/types/chat.types';
 import type { Mood } from '@/types/mood.types';
+import type { ProductImage } from '@/types/product.types';
+import type { COLMAPState, NeRFTrainingState, RenderingState } from '@/types/nerf.types';
 
 /**
  * Global application state store using Zustand.
@@ -30,6 +32,28 @@ interface AppState {
   // Actual scene state is in sceneStore, this just tracks completion
   storyboardCompleted: boolean;
   setStoryboardCompleted: (completed: boolean) => void;
+
+  // Product: Uploaded product image
+  uploadedProduct: ProductImage | null;
+  setUploadedProduct: (product: ProductImage | null) => void;
+
+  // COLMAP: Camera pose estimation
+  colmap: COLMAPState | null;
+  setCOLMAP: (state: COLMAPState) => void;
+  updateCOLMAP: (updates: Partial<COLMAPState>) => void;
+  clearCOLMAP: () => void;
+
+  // NeRF Training: Model training
+  nerfTraining: NeRFTrainingState | null;
+  setNeRFTraining: (state: NeRFTrainingState) => void;
+  updateNeRFTraining: (updates: Partial<NeRFTrainingState>) => void;
+  clearNeRFTraining: () => void;
+
+  // Rendering: Frame rendering
+  rendering: RenderingState | null;
+  setRendering: (state: RenderingState) => void;
+  updateRendering: (updates: Partial<RenderingState>) => void;
+  clearRendering: () => void;
 
   // Final: Composition
   audioUrl: string | null;
@@ -66,6 +90,34 @@ export const useAppStore = create<AppState>((set) => ({
   storyboardCompleted: false,
   setStoryboardCompleted: (completed) => set({ storyboardCompleted: completed }),
 
+  // Product: Uploaded product image
+  uploadedProduct: null,
+  setUploadedProduct: (product) => set({ uploadedProduct: product }),
+
+  // COLMAP: Camera pose estimation
+  colmap: null,
+  setCOLMAP: (state) => set({ colmap: state }),
+  updateCOLMAP: (updates) => set((s) => ({
+    colmap: s.colmap ? { ...s.colmap, ...updates } : null,
+  })),
+  clearCOLMAP: () => set({ colmap: null }),
+
+  // NeRF Training: Model training
+  nerfTraining: null,
+  setNeRFTraining: (state) => set({ nerfTraining: state }),
+  updateNeRFTraining: (updates) => set((s) => ({
+    nerfTraining: s.nerfTraining ? { ...s.nerfTraining, ...updates } : null,
+  })),
+  clearNeRFTraining: () => set({ nerfTraining: null }),
+
+  // Rendering: Frame rendering
+  rendering: null,
+  setRendering: (state) => set({ rendering: state }),
+  updateRendering: (updates) => set((s) => ({
+    rendering: s.rendering ? { ...s.rendering, ...updates } : null,
+  })),
+  clearRendering: () => set({ rendering: null }),
+
   // Final: Composition
   audioUrl: null,
   setAudioUrl: (url) => set({ audioUrl: url }),
@@ -86,6 +138,10 @@ export const useAppStore = create<AppState>((set) => ({
       moods: [],
       selectedMoodId: null,
       storyboardCompleted: false,
+      uploadedProduct: null,
+      colmap: null,
+      nerfTraining: null,
+      rendering: null,
       audioUrl: null,
       compositionJobId: null,
       finalVideo: null,

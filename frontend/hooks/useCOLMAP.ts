@@ -34,7 +34,7 @@ export function useCOLMAP() {
    */
   const start = useCallback(async (request: COLMAPRequest) => {
     try {
-      logger.info('Starting COLMAP processing', { jobId: request.job_id });
+      logger.info('COLMAP', 'Starting COLMAP processing', { jobId: request.job_id });
 
       // Initialize COLMAP state
       setCOLMAP({
@@ -64,7 +64,7 @@ export function useCOLMAP() {
 
       return response;
     } catch (error) {
-      logger.error('Failed to start COLMAP processing', { error });
+      logger.error('COLMAP', 'Failed to start COLMAP processing', error, { request });
       updateCOLMAP({
         status: 'failed',
         error: error instanceof Error ? error.message : 'Failed to start COLMAP processing',
@@ -134,13 +134,13 @@ export function useCOLMAP() {
         stopPolling();
 
         if (status.status === 'complete') {
-          logger.info('COLMAP processing completed', { jobId, outputPath: status.output_path });
+          logger.info('COLMAP', 'COLMAP processing completed', { jobId, outputPath: status.output_path });
         } else {
-          logger.error('COLMAP processing failed', { jobId, error: status.error });
+          logger.error('COLMAP', 'COLMAP processing failed', new Error(status.error || 'Unknown error'), { jobId });
         }
       }
     } catch (error) {
-      logger.error('Failed to get COLMAP status', { error });
+      logger.error('COLMAP', 'Failed to get COLMAP status', error);
       // Don't stop polling on errors - might be temporary
     }
   }, [updateCOLMAP, stopPolling]);
@@ -150,7 +150,7 @@ export function useCOLMAP() {
    */
   const retry = useCallback(async (request: COLMAPRequest) => {
     try {
-      logger.info('Retrying COLMAP processing', { jobId: request.job_id });
+      logger.info('COLMAP', 'Retrying COLMAP processing', { jobId: request.job_id });
 
       // Reset state
       updateCOLMAP({
@@ -178,7 +178,7 @@ export function useCOLMAP() {
 
       return response;
     } catch (error) {
-      logger.error('Failed to retry COLMAP processing', { error });
+      logger.error('COLMAP', 'Failed to retry COLMAP processing', error, { request });
       updateCOLMAP({
         status: 'failed',
         error: error instanceof Error ? error.message : 'Failed to retry COLMAP processing',

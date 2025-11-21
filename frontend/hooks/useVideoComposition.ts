@@ -18,7 +18,6 @@ export function useVideoComposition() {
     compositionJobId,
     setCompositionJobId,
     setFinalVideo,
-    updateCompositionProgress,
   } = useAppStore();
 
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -103,7 +102,6 @@ export function useVideoComposition() {
       pollJobStatus(jobId).then((status) => {
         if (status) {
           setJobStatus(status);
-          updateCompositionProgress(status.progress_percent);
 
           if (status.status === 'completed' && status.video_url) {
             setFinalVideo({
@@ -121,7 +119,6 @@ export function useVideoComposition() {
 
         if (status) {
           setJobStatus(status);
-          updateCompositionProgress(status.progress_percent);
 
           // Update final video in store
           if (status.status === 'completed' && status.video_url) {
@@ -146,7 +143,7 @@ export function useVideoComposition() {
         }
       }, 2000); // Poll every 2 seconds
     },
-    [pollJobStatus, updateCompositionProgress, setFinalVideo]
+    [pollJobStatus, setFinalVideo]
   );
 
   /**

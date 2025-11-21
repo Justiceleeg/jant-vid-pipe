@@ -703,7 +703,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
 /**
  * Polling fallback for scene status when SSE is not available
  */
-async function pollSceneStatus(sceneId: string, get: () => StoryboardState) {
+async function pollSceneStatus(sceneId: string, get: () => SceneState) {
   const maxAttempts = 60; // 5 minutes max (5s intervals)
   let attempts = 0;
 
