@@ -6,6 +6,7 @@ Generic service for managing asset uploads, validation, storage, and thumbnail g
 
 import uuid
 import json
+import logging
 from pathlib import Path
 from typing import Optional, Tuple, List, TypeVar, Generic
 from datetime import datetime
@@ -13,6 +14,8 @@ from PIL import Image
 import io
 
 from ..models.asset_models import AssetUploadResponse, AssetStatus, ImageDimensions
+
+logger = logging.getLogger(__name__)
 
 T = TypeVar('T', bound=AssetUploadResponse)
 S = TypeVar('S', bound=AssetStatus)
@@ -215,6 +218,44 @@ class BaseAssetService(Generic[T, S]):
                 thumb = rgb_thumb
             thumb.save(thumb_path, 'JPEG', quality=90, optimize=True)
         
+        # Upload to ImgBB for public URLs (for external API access)
+        public_url = None
+        public_thumbnail_url = None
+        
+        try:
+            from ..services.imgbb_service import get_imgbb_service
+            print(f"[Asset Upload] Checking ImgBB configuration...")
+            imgbb_service = get_imgbb_service()
+            
+            if imgbb_service:
+                # Upload original image
+                print(f"[Asset Upload] Uploading {filename} to ImgBB...")
+                logger.info(f"Uploading {filename} to ImgBB...")
+                public_url = imgbb_service.upload_image(original_path)
+                
+                if public_url:
+                    print(f"[Asset Upload] ✓ Successfully uploaded to ImgBB: {public_url}")
+                    logger.info(f"Successfully uploaded to ImgBB: {public_url}")
+                    
+                    # Upload thumbnail if original succeeded
+                    print(f"[Asset Upload] Uploading thumbnail for {filename} to ImgBB...")
+                    logger.info(f"Uploading thumbnail for {filename} to ImgBB...")
+                    public_thumbnail_url = imgbb_service.upload_image(thumb_path)
+                    
+                    if public_thumbnail_url:
+                        print(f"[Asset Upload] ✓ Successfully uploaded thumbnail to ImgBB: {public_thumbnail_url}")
+                        logger.info(f"Successfully uploaded thumbnail to ImgBB: {public_thumbnail_url}")
+                    else:
+                        print(f"[Asset Upload] ⚠️  Thumbnail upload to ImgBB failed")
+                else:
+                    print(f"[Asset Upload] ⚠️  Failed to upload to ImgBB (no URL returned)")
+            else:
+                print(f"[Asset Upload] ⚠️  ImgBB service not configured (IMGBB_API_KEY not set). Skipping public URL upload.")
+                logger.info("ImgBB service not configured, skipping public URL upload")
+        except Exception as e:
+            print(f"[Asset Upload] ❌ Error uploading to ImgBB: {e}")
+            logger.warning(f"Failed to upload to ImgBB: {e}. Continuing with local URLs.", exc_info=True)
+        
         # Extract metadata
         width, height = img.size
         file_size = len(file_data)
@@ -229,7 +270,9 @@ class BaseAssetService(Generic[T, S]):
             "dimensions": {"width": width, "height": height},
             "file_size": file_size,  # bytes
             "has_alpha": has_alpha,  # boolean
-            "uploaded_at": uploaded_at  # ISO 8601 format
+            "uploaded_at": uploaded_at,  # ISO 8601 format
+            "public_url": public_url,  # Public URL from ImgBB
+            "public_thumbnail_url": public_thumbnail_url  # Public thumbnail URL from ImgBB
         }
         
         metadata_path = asset_dir / "metadata.json"
@@ -242,6 +285,8 @@ class BaseAssetService(Generic[T, S]):
             filename=filename,
             url=f"/api/{self.api_prefix}/{asset_id}/image",
             thumbnail_url=f"/api/{self.api_prefix}/{asset_id}/thumbnail",
+            public_url=public_url,
+            public_thumbnail_url=public_thumbnail_url,
             size=file_size,
             dimensions=ImageDimensions(width=width, height=height),
             format=img_format,
@@ -265,6 +310,8 @@ class BaseAssetService(Generic[T, S]):
             status="active",
             url=f"/api/{self.api_prefix}/{asset_id}/image",
             thumbnail_url=f"/api/{self.api_prefix}/{asset_id}/thumbnail",
+            public_url=metadata.get("public_url"),  # Public URL from ImgBB
+            public_thumbnail_url=metadata.get("public_thumbnail_url"),  # Public thumbnail URL from ImgBB
             dimensions=ImageDimensions(**metadata["dimensions"]),
             format=metadata["format"],
             has_alpha=metadata["has_alpha"],

@@ -91,9 +91,16 @@ function ScenesPageContent() {
     // Only initialize new storyboard if we don't have one and we have the required data
     else if (!storyboard && creativeBrief && selectedMoodId) {
       const selectedMood = moods.find((m) => m.id === selectedMoodId);
+      const project = getCurrentProject();
       if (selectedMood) {
         console.log('[Page] Initializing new storyboard');
-        initializeStoryboard(creativeBrief, selectedMood);
+        initializeStoryboard(
+          creativeBrief, 
+          selectedMood, 
+          projectId,
+          project?.brandAssetIds || null,
+          project?.characterAssetIds || null
+        );
       }
     }
   }, [storyboardId, urlStoryboardId, storyboard, creativeBrief, selectedMoodId, moods, isLoading, isRecovering, loadStoryboard, initializeStoryboard]);

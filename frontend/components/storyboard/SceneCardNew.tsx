@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { config } from '@/lib/config';
 import { useAppStore } from '@/store/appStore';
 import { useSceneStore } from '@/store/sceneStore';
+import { SceneAssetDisplay } from './SceneAssetDisplay';
+import { SceneAssetToggleSection } from './SceneAssetToggleSection';
 
 interface SceneCardNewProps {
   scene: StoryboardScene;
@@ -177,6 +179,14 @@ export function SceneCardNew({
                 <ProductToggleSection scene={scene} />
               </div>
             )}
+            
+            {/* Asset Toggle Section */}
+            <div className="pt-4 border-t border-border">
+              <SceneAssetToggleSection scene={scene} />
+            </div>
+            
+            {/* Asset Display (read-only, shows what's selected) */}
+            <SceneAssetDisplay scene={scene} />
           </div>
         )}
 

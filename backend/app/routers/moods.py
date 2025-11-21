@@ -71,13 +71,13 @@ async def generate_moods(
             image_width = settings.IMAGE_WIDTH
             image_height = settings.IMAGE_HEIGHT
         elif settings.is_development():
-            # Dev: 640x1136 (maintains 9:16 ratio, 4x fewer pixels = much faster)
-            image_width = 640
-            image_height = 1136
+            # Dev: 1280x720 (maintains 16:9 ratio, 4x fewer pixels = much faster)
+            image_width = 1280
+            image_height = 720
         else:
-            # Prod: 1080x1920 (full HD vertical, high quality)
-            image_width = 1080
-            image_height = 1920
+            # Prod: 1920x1080 (full HD landscape, high quality)
+            image_width = 1920
+            image_height = 1080
         
         # Build prompts for all images (3 moods × images_per_mood)
         all_prompts = []

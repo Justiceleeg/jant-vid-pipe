@@ -323,7 +323,7 @@ export function FinalComposition({ onBack }: FinalCompositionProps) {
                 <div className="text-xs text-muted-foreground">Scenes</div>
               </div>
               <div className="text-center p-3 bg-zinc-50 dark:bg-zinc-800 rounded-lg">
-                <div className="text-2xl font-bold">9:16</div>
+                <div className="text-2xl font-bold">16:9</div>
                 <div className="text-xs text-muted-foreground">Aspect Ratio</div>
               </div>
             </div>

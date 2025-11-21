@@ -30,7 +30,7 @@ interface SceneState {
   error: string | null;
 
   // Actions - Storyboard operations
-  initializeStoryboard: (creativeBrief: any, selectedMood: any) => Promise<void>;
+  initializeStoryboard: (creativeBrief: any, selectedMood: any, projectId?: string | null, brandAssetIds?: string[] | null, characterAssetIds?: string[] | null) => Promise<void>;
   loadStoryboard: (storyboardId: string) => Promise<void>;
   regenerateAllScenes: () => Promise<void>;
 
@@ -47,6 +47,12 @@ interface SceneState {
   // Actions - Product compositing
   enableProductComposite: (sceneId: string, productId: string) => Promise<void>;
   disableProductComposite: (sceneId: string) => Promise<void>;
+
+  // Actions - Asset toggling
+  enableBrandAsset: (sceneId: string, brandAssetId: string) => Promise<void>;
+  disableBrandAsset: (sceneId: string) => Promise<void>;
+  enableCharacterAsset: (sceneId: string, characterAssetId: string) => Promise<void>;
+  disableCharacterAsset: (sceneId: string) => Promise<void>;
 
   // Actions - SSE
   connectSSE: (storyboardId: string) => void;
@@ -71,7 +77,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
   error: null,
 
       // Initialize new storyboard
-      initializeStoryboard: async (creativeBrief, selectedMood) => {
+      initializeStoryboard: async (creativeBrief, selectedMood, projectId, brandAssetIds, characterAssetIds) => {
         // Prevent duplicate initialization calls
         const currentState = get();
         if (currentState.isLoading || currentState.storyboard) {
@@ -86,6 +92,9 @@ export const useSceneStore = create<SceneState>((set, get) => ({
             () => storyboardAPI.initializeStoryboard({
               creative_brief: creativeBrief,
               selected_mood: selectedMood,
+              project_id: projectId || null,
+              brand_asset_ids: brandAssetIds || null,
+              character_asset_ids: characterAssetIds || null,
             }),
             {
               maxRetries: 2,
@@ -571,6 +580,150 @@ export const useSceneStore = create<SceneState>((set, get) => ({
         } catch (error) {
           set({
             error: error instanceof Error ? error.message : 'Failed to disable product composite',
+            isSaving: false,
+          });
+          throw error;
+        }
+      },
+
+      // Enable brand asset for a scene
+      enableBrandAsset: async (sceneId, brandAssetId) => {
+        set({ isSaving: true, error: null });
+        try {
+          const storyboard = get().storyboard;
+          if (!storyboard) {
+            throw new Error('No storyboard loaded');
+          }
+          
+          const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+          const response = await fetch(
+            `${API_URL}/api/storyboards/${storyboard.storyboard_id}/scenes/${sceneId}/brand-asset`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ brand_asset_id: brandAssetId }),
+            }
+          );
+          
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to enable brand asset');
+          }
+          
+          const data = await response.json();
+          
+          // Update scene in state
+          get().updateScene(sceneId, data.scene);
+          set({ isSaving: false });
+        } catch (error) {
+          set({
+            error: error instanceof Error ? error.message : 'Failed to enable brand asset',
+            isSaving: false,
+          });
+          throw error;
+        }
+      },
+
+      // Disable brand asset for a scene
+      disableBrandAsset: async (sceneId) => {
+        set({ isSaving: true, error: null });
+        try {
+          const storyboard = get().storyboard;
+          if (!storyboard) {
+            throw new Error('No storyboard loaded');
+          }
+          
+          const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+          const response = await fetch(
+            `${API_URL}/api/storyboards/${storyboard.storyboard_id}/scenes/${sceneId}/brand-asset`,
+            { method: 'DELETE' }
+          );
+          
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to disable brand asset');
+          }
+          
+          const data = await response.json();
+          
+          // Update scene in state
+          get().updateScene(sceneId, data.scene);
+          set({ isSaving: false });
+        } catch (error) {
+          set({
+            error: error instanceof Error ? error.message : 'Failed to disable brand asset',
+            isSaving: false,
+          });
+          throw error;
+        }
+      },
+
+      // Enable character asset for a scene
+      enableCharacterAsset: async (sceneId, characterAssetId) => {
+        set({ isSaving: true, error: null });
+        try {
+          const storyboard = get().storyboard;
+          if (!storyboard) {
+            throw new Error('No storyboard loaded');
+          }
+          
+          const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+          const response = await fetch(
+            `${API_URL}/api/storyboards/${storyboard.storyboard_id}/scenes/${sceneId}/character-asset`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ character_asset_id: characterAssetId }),
+            }
+          );
+          
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to enable character asset');
+          }
+          
+          const data = await response.json();
+          
+          // Update scene in state
+          get().updateScene(sceneId, data.scene);
+          set({ isSaving: false });
+        } catch (error) {
+          set({
+            error: error instanceof Error ? error.message : 'Failed to enable character asset',
+            isSaving: false,
+          });
+          throw error;
+        }
+      },
+
+      // Disable character asset for a scene
+      disableCharacterAsset: async (sceneId) => {
+        set({ isSaving: true, error: null });
+        try {
+          const storyboard = get().storyboard;
+          if (!storyboard) {
+            throw new Error('No storyboard loaded');
+          }
+          
+          const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+          const response = await fetch(
+            `${API_URL}/api/storyboards/${storyboard.storyboard_id}/scenes/${sceneId}/character-asset`,
+            { method: 'DELETE' }
+          );
+          
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to disable character asset');
+          }
+          
+          const data = await response.json();
+          
+          // Update scene in state
+          get().updateScene(sceneId, data.scene);
+          set({ isSaving: false });
+        } catch (error) {
+          set({
+            error: error instanceof Error ? error.message : 'Failed to disable character asset',
             isSaving: false,
           });
           throw error;
