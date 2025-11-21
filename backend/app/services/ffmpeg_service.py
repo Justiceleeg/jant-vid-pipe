@@ -13,8 +13,8 @@ from datetime import datetime
 class FFmpegCompositionService:
     """Service for composing final videos using FFmpeg."""
 
-    # Target specifications
-    TARGET_WIDTH = 1080  # 9:16 aspect ratio
+    # Target specifications (defaults, will be auto-detected from input videos)
+    TARGET_WIDTH = 1080  # 9:16 aspect ratio (default)
     TARGET_HEIGHT = 1920
     TARGET_FPS = 30
     TARGET_DURATION = 30  # seconds
@@ -155,6 +155,29 @@ class FFmpegCompositionService:
             print(f"⚠ Warning: Could not probe video duration for {video_path.name}: {e}")
             return 0.0
 
+    def get_video_resolution(self, video_path: Path) -> Tuple[int, int]:
+        """
+        Get video resolution (width, height) using ffprobe.
+        
+        Args:
+            video_path: Path to video file
+            
+        Returns:
+            Tuple of (width, height), defaults to (1080, 1920) if detection fails
+        """
+        try:
+            probe = ffmpeg.probe(str(video_path))
+            video_stream = next((stream for stream in probe['streams'] if stream['codec_type'] == 'video'), None)
+            if video_stream:
+                width = int(video_stream['width'])
+                height = int(video_stream['height'])
+                return (width, height)
+        except Exception:
+            pass
+        
+        # Default to 1080x1920 if detection fails
+        return (self.TARGET_WIDTH, self.TARGET_HEIGHT)
+
     def _check_has_audio(self, video_path: Path) -> bool:
         """
         Check if a video file has audio streams.
@@ -233,6 +256,9 @@ class FFmpegCompositionService:
 
             output_path = self.work_dir / output_filename
 
+            # Detect resolution from first clip
+            detected_width, detected_height = self.get_video_resolution(video_paths[0])
+            
             # Calculate durations
             clip_durations = [self.get_video_duration(path) for path in video_paths]
             total_duration = sum(clip_durations)
@@ -242,19 +268,17 @@ class FFmpegCompositionService:
             total_crossfade_time = num_transitions * self.CROSSFADE_DURATION if include_crossfade else 0
             final_duration = total_duration - total_crossfade_time
 
-            print(f"📊 Composition details:")
-            print(f"   - {len(video_paths)} clips, total duration: {total_duration:.1f}s")
-            print(f"   - Crossfade transitions: {num_transitions} × {self.CROSSFADE_DURATION}s")
-            print(f"   - Final duration: {final_duration:.1f}s")
 
             # Compose video based on whether crossfade is needed
             if include_crossfade and len(video_paths) > 1:
                 composed_path = await self._compose_with_crossfade(
-                    video_paths, clip_durations, output_path, target_bitrate
+                    video_paths, clip_durations, output_path, target_bitrate,
+                    width=detected_width, height=detected_height
                 )
             else:
                 composed_path = await self._compose_simple_concat(
-                    video_paths, output_path, target_bitrate
+                    video_paths, output_path, target_bitrate,
+                    width=detected_width, height=detected_height
                 )
 
             if not composed_path or not composed_path.exists():
@@ -298,7 +322,9 @@ class FFmpegCompositionService:
         self,
         video_paths: List[Path],
         output_path: Path,
-        target_bitrate: Optional[str] = None
+        target_bitrate: Optional[str] = None,
+        width: Optional[int] = None,
+        height: Optional[int] = None
     ) -> Optional[Path]:
         """
         Concatenate videos without transitions using concat demuxer.
@@ -307,11 +333,17 @@ class FFmpegCompositionService:
             video_paths: List of video file paths
             output_path: Output file path
             target_bitrate: Optional target bitrate
+            width: Target video width (auto-detected if not provided)
+            height: Target video height (auto-detected if not provided)
 
         Returns:
             Path to output file or None if failed
         """
         try:
+            # Use provided resolution or defaults
+            target_width = width or self.TARGET_WIDTH
+            target_height = height or self.TARGET_HEIGHT
+            
             # Check if clips have audio
             has_audio = self._check_has_audio(video_paths[0])
             if has_audio:
@@ -338,7 +370,7 @@ class FFmpegCompositionService:
                             video_bitrate=bitrate,
                             acodec='aac',
                             audio_bitrate='192k',
-                            s=f'{self.TARGET_WIDTH}x{self.TARGET_HEIGHT}',
+                            s=f'{target_width}x{target_height}',
                             r=self.TARGET_FPS,
                             preset='medium',
                             pix_fmt='yuv420p'
@@ -357,7 +389,7 @@ class FFmpegCompositionService:
                             str(output_path),
                             vcodec='libx264',
                             video_bitrate=bitrate,
-                            s=f'{self.TARGET_WIDTH}x{self.TARGET_HEIGHT}',
+                            s=f'{target_width}x{target_height}',
                             r=self.TARGET_FPS,
                             preset='medium',
                             pix_fmt='yuv420p'
@@ -383,7 +415,9 @@ class FFmpegCompositionService:
         video_paths: List[Path],
         clip_durations: List[float],
         output_path: Path,
-        target_bitrate: Optional[str] = None
+        target_bitrate: Optional[str] = None,
+        width: Optional[int] = None,
+        height: Optional[int] = None
     ) -> Optional[Path]:
         """
         Compose video with crossfade transitions between clips.
@@ -393,12 +427,18 @@ class FFmpegCompositionService:
             clip_durations: List of clip durations in seconds
             output_path: Output file path
             target_bitrate: Optional target bitrate
+            width: Target video width (auto-detected if not provided)
+            height: Target video height (auto-detected if not provided)
 
         Returns:
             Path to output file or None if failed
         """
         try:
             print("🎞️  Composing with crossfade transitions...")
+
+            # Use provided resolution or defaults
+            target_width = width or self.TARGET_WIDTH
+            target_height = height or self.TARGET_HEIGHT
 
             # Check if clips have audio streams
             has_audio = self._check_has_audio(video_paths[0])
@@ -471,7 +511,7 @@ class FFmpegCompositionService:
                     video_bitrate=bitrate,
                     acodec='aac',
                     audio_bitrate='192k',
-                    s=f'{self.TARGET_WIDTH}x{self.TARGET_HEIGHT}',
+                    s=f'{target_width}x{target_height}',
                     r=self.TARGET_FPS,
                     preset='medium',
                     pix_fmt='yuv420p'
@@ -483,7 +523,7 @@ class FFmpegCompositionService:
                     str(output_path),
                     vcodec='libx264',
                     video_bitrate=bitrate,
-                    s=f'{self.TARGET_WIDTH}x{self.TARGET_HEIGHT}',
+                    s=f'{target_width}x{target_height}',
                     r=self.TARGET_FPS,
                     preset='medium',
                     pix_fmt='yuv420p'

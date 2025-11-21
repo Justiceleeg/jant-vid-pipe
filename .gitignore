@@ -1,10 +1,12 @@
 # Logs
 logs
+logs/*.json
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 dev-debug.log
+!logs/.gitkeep
 
 # Dependency directories
 node_modules/
@@ -49,7 +51,16 @@ ENV/
 .taskmaster/
 .cursor/rules/taskmaster/ 
 
+<<<<<<< HEAD
 # Thought files
 thought/
 tom_planning/
 .claude/
+=======
+# Task files
+# tasks.json
+# tasks/ 
+
+# Upload directories
+backend/uploads
+>>>>>>> origin/main

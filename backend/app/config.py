@@ -1,6 +1,8 @@
 """Configuration settings for the FastAPI backend."""
 from pydantic_settings import BaseSettings
-from typing import List
+from typing import List, Literal
+from pathlib import Path
+from pydantic import Field
 
 
 class Settings(BaseSettings):
@@ -36,6 +38,84 @@ class Settings(BaseSettings):
     
     # CORS Configuration (comma-separated string)
     CORS_ORIGINS: str = "http://localhost:3000"
+    
+    # Backend API Base URL (for generating full URLs for external services)
+    API_BASE_URL: str = "http://localhost:8000"
+    
+    # Upload mode configuration
+    UPLOAD_MODE: Literal["nerf", "product"] = Field(
+        default="product",
+        description="Upload mode: 'nerf' for NeRF pipeline, 'product' for single image"
+    )
+    
+    # NeRF Storage Paths
+    FRAME_STORAGE_PATH: str = "backend/nerf/renders"
+    MODEL_STORAGE_PATH: str = "backend/nerf/models"
+    UPLOAD_STORAGE_PATH: str = "backend/uploads/temp"
+    
+    # NeRF Training Configuration
+    NERF_DEFAULT_ITERATIONS: int = 15000
+    NERF_STEPS_PER_SAVE: int = 2000
+    NERF_STEPS_PER_EVAL: int = 100
+    
+    # NeRF Rendering Configuration
+    NERF_SAMPLES_PER_RAY: int = 128
+    NERF_FRAMES_PER_BATCH: int = 100
+    NERF_DEFAULT_RESOLUTION_WIDTH: int = 1920
+    NERF_DEFAULT_RESOLUTION_HEIGHT: int = 1080
+    
+    # GPU Configuration (based on environment)
+    # T4: ~$0.35/hour (development)
+    # A10G: ~$1.10/hour (production)
+    GPU_TYPE_DEV: str = "T4"
+    GPU_TYPE_PROD: str = "A10G"
+    
+    # COLMAP Configuration
+    COLMAP_FEATURE_TYPE: str = "SIFT"
+    COLMAP_MATCHER_TYPE: str = "exhaustive"
+    
+    # Job Cleanup (hours)
+    JOB_CLEANUP_HOURS: int = 24
+    MODAL_VOLUME_CLEANUP_HOURS: int = 48
+    
+    # Product Compositing Configuration
+    USE_KONTEXT_COMPOSITE: bool = Field(
+        default=True,
+        description="Enable FLUX Kontext for product compositing (feature flag)"
+    )
+    
+    KONTEXT_MODEL_ID: str = Field(
+        default="flux-kontext-apps/multi-image-kontext-pro",
+        description="Replicate model ID for Kontext compositing"
+    )
+    
+    COMPOSITE_METHOD: str = Field(
+        default="kontext",
+        description="Compositing method: 'kontext' or 'pil'"
+    )
+    
+    # Rate Limiting
+    MAX_CONCURRENT_KONTEXT: int = Field(
+        default=10,
+        description="Max concurrent Kontext generations"
+    )
+    
+    MAX_KONTEXT_PER_HOUR: int = Field(
+        default=100,
+        description="Max Kontext generations per hour"
+    )
+    
+    # Timeouts
+    KONTEXT_TIMEOUT_SECONDS: int = Field(
+        default=60,
+        description="Timeout for Kontext API calls"
+    )
+    
+    # Monitoring
+    KONTEXT_DAILY_GENERATION_LIMIT: int = Field(
+        default=1000,
+        description="Alert threshold for daily Kontext generations"
+    )
     
     def is_development(self) -> bool:
         """Check if running in development mode."""
