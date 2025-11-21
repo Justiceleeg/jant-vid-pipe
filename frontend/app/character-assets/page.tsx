@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { layoutClasses } from "@/lib/layout";
 import { cn } from "@/lib/utils";
@@ -13,7 +13,7 @@ import { ArrowLeft } from 'lucide-react';
  * Protected character assets page - character asset management interface
  * This route is protected by Clerk middleware
  */
-export default function CharacterAssetsPage() {
+function CharacterAssetsPageContent() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -90,4 +90,21 @@ export default function CharacterAssetsPage() {
   );
 }
 
+export default function CharacterAssetsPage() {
+  return (
+    <Suspense fallback={
+      <div className={cn(layoutClasses.fullScreen, "flex flex-col pt-16")}>
+        <main className={cn(layoutClasses.scrollableContainer, "flex-1 p-6")}>
+          <div className="max-w-6xl mx-auto">
+            <div className="text-center py-12">
+              <p className="text-muted-foreground">Loading...</p>
+            </div>
+          </div>
+        </main>
+      </div>
+    }>
+      <CharacterAssetsPageContent />
+    </Suspense>
+  );
+}
 

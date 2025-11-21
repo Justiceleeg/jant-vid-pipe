@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { layoutClasses } from "@/lib/layout";
 import { cn } from "@/lib/utils";
@@ -13,7 +13,7 @@ import { ArrowLeft } from 'lucide-react';
  * Protected brand assets page - brand asset management interface
  * This route is protected by Clerk middleware
  */
-export default function BrandAssetsPage() {
+function BrandAssetsPageContent() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -87,5 +87,23 @@ export default function BrandAssetsPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function BrandAssetsPage() {
+  return (
+    <Suspense fallback={
+      <div className={cn(layoutClasses.fullScreen, "flex flex-col pt-16")}>
+        <main className={cn(layoutClasses.scrollableContainer, "flex-1 p-6")}>
+          <div className="max-w-6xl mx-auto">
+            <div className="text-center py-12">
+              <p className="text-muted-foreground">Loading...</p>
+            </div>
+          </div>
+        </main>
+      </div>
+    }>
+      <BrandAssetsPageContent />
+    </Suspense>
   );
 }

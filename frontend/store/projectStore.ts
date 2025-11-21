@@ -121,12 +121,12 @@ export const useProjectStore = create<ProjectStoreState>()(
         useAppStore.getState().reset();
         useSceneStore.getState().reset();
 
-        console.log('[ProjectStore] Created new project:', { 
-          id: projectId, 
-          name,
-          brandAssetIds: newProject.brandAssetIds.length,
-          characterAssetIds: newProject.characterAssetIds.length,
-        });
+      console.log('[ProjectStore] Created new project:', {
+        id: projectId,
+        name,
+        brandAssetIds: newProject.brandAssetIds?.length || 0,
+        characterAssetIds: newProject.characterAssetIds?.length || 0,
+      });
 
         return projectId;
       },

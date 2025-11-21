@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, Suspense } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { StoryboardCarousel } from '@/components/storyboard';
 import { useStoryboard, useStoryboardRecovery } from '@/hooks/useStoryboard';
@@ -461,11 +461,17 @@ function ScenesPageContent() {
   );
 }
 
-// Wrap with ToastProvider
+// Wrap with ToastProvider and Suspense
 export default function ScenesPage() {
   return (
     <ToastProvider>
-      <ScenesPageContent />
+      <Suspense fallback={
+        <div className="flex items-center justify-center min-h-screen">
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      }>
+        <ScenesPageContent />
+      </Suspense>
     </ToastProvider>
   );
 }
