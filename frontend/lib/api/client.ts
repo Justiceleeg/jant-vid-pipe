@@ -47,9 +47,15 @@ import type { AudioGenerationRequest, AudioGenerationResponse } from '@/types/au
  * Generate mood boards from a creative brief
  */
 export async function generateMoods(
-  creativeBrief: MoodGenerationRequest
+  creativeBrief: MoodGenerationRequest,
+  projectId?: string
 ): Promise<MoodGenerationResponse> {
-  return apiRequest<MoodGenerationResponse>('/api/moods/generate', {
+  // Build URL with optional project ID query parameter
+  const url = projectId
+    ? `/api/moods/generate?project_id=${encodeURIComponent(projectId)}`
+    : '/api/moods/generate';
+
+  return apiRequest<MoodGenerationResponse>(url, {
     method: 'POST',
     body: JSON.stringify(creativeBrief),
   });

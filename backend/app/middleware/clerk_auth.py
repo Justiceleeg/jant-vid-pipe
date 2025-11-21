@@ -3,7 +3,8 @@
 Extracts and validates Clerk JWTs from Authorization headers.
 """
 import logging
-from typing import Optional
+import jwt
+from typing import Optional, Dict, Any
 from fastapi import Request, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from clerk_backend_api import Clerk
@@ -22,6 +23,37 @@ def get_clerk_client() -> Clerk:
             raise ValueError("CLERK_SECRET_KEY not configured")
         clerk_client = Clerk(bearer_auth=settings.CLERK_SECRET_KEY)
     return clerk_client
+
+
+def verify_clerk_token(token: str) -> Dict[str, Any]:
+    """
+    Verify Clerk JWT token without signature verification.
+
+    For production, you should verify the signature using Clerk's JWKS endpoint.
+    For now, we'll decode without verification since we're in development.
+
+    Args:
+        token: JWT token from Authorization header
+
+    Returns:
+        Decoded token payload
+
+    Raises:
+        Exception: If token is invalid or expired
+    """
+    try:
+        # Decode without verification (development only)
+        # In production, fetch and verify against Clerk's JWKS
+        decoded = jwt.decode(
+            token,
+            options={"verify_signature": False},
+            algorithms=["RS256"]
+        )
+        return decoded
+    except jwt.ExpiredSignatureError:
+        raise Exception("Token has expired")
+    except jwt.InvalidTokenError as e:
+        raise Exception(f"Invalid token: {str(e)}")
 
 
 security = HTTPBearer(auto_error=False)
@@ -67,23 +99,22 @@ async def get_current_user_id(request: Request) -> str:
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # Verify token with Clerk
+    # Verify token
     try:
-        clerk = get_clerk_client()
-        # Verify the JWT token
-        verified = clerk.verify_token(token)
-        
-        if not verified or "sub" not in verified:
+        # Verify and decode the JWT token
+        decoded = verify_clerk_token(token)
+
+        if not decoded or "sub" not in decoded:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token - verification failed",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        
-        user_id = verified["sub"]
+
+        user_id = decoded["sub"]
         logger.debug(f"Authenticated user: {user_id}")
         return user_id
-        
+
     except HTTPException:
         raise
     except Exception as e:

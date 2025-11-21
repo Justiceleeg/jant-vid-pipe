@@ -51,16 +51,10 @@ ENV/
 .taskmaster/
 .cursor/rules/taskmaster/ 
 
-<<<<<<< HEAD
 # Thought files
 thought/
 tom_planning/
 .claude/
-=======
-# Task files
-# tasks.json
-# tasks/ 
 
 # Upload directories
-backend/uploads
->>>>>>> origin/main
+backend/uploads/

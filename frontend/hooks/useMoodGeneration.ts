@@ -11,7 +11,7 @@ interface UseMoodGenerationReturn {
   selectedMoodId: string | null;
   isLoading: boolean;
   error: string | null;
-  generateMoodsFromBrief: (brief: MoodGenerationRequest) => Promise<void>;
+  generateMoodsFromBrief: (brief: MoodGenerationRequest, projectId?: string) => Promise<void>;
   selectMood: (moodId: string) => void;
   clearError: () => void;
 }
@@ -32,14 +32,14 @@ export function useMoodGeneration(): UseMoodGenerationReturn {
   const error = localError || storeError;
 
   const generateMoodsFromBrief = useCallback(
-    async (brief: MoodGenerationRequest) => {
+    async (brief: MoodGenerationRequest, projectId?: string) => {
       setIsLoading(true);
       setLocalError(null);
       setStoreError(null);
 
       try {
-        // Call actual API endpoint
-        const response = await generateMoods(brief);
+        // Call actual API endpoint with optional project ID
+        const response = await generateMoods(brief, projectId);
 
         if (!response.success || !response.moods) {
           throw new Error(response.message || 'Failed to generate moods');

@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.config import settings
-from app.routers import moods, scenes, video, audio, composition, storyboards, upload, nerf, product, admin
+from app.routers import moods, scenes, video, audio, composition, storyboards, upload, nerf, product, admin, projects
 
 # Configure logging
 logging.basicConfig(
@@ -50,7 +50,8 @@ uploads_dir.mkdir(exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # Include routers
-app.include_router(storyboards.router)  # Unified Storyboard Interface
+app.include_router(projects.router)  # New Project-Centric API
+app.include_router(storyboards.router)  # Unified Storyboard Interface (legacy)
 app.include_router(moods.router)
 app.include_router(scenes.router)
 app.include_router(video.router)

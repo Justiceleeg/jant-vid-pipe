@@ -2,7 +2,7 @@
 import uuid
 from datetime import datetime
 from typing import Optional
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Request
+from fastapi import APIRouter, HTTPException, Request
 
 from app.models.video_models import (
     VideoGenerationRequest,
@@ -12,6 +12,7 @@ from app.models.video_models import (
     VideoClip,
     JobStatus
 )
+from app.models.job_models import MultiVideoGenerationJob, VideoClipInput
 from app.services.replicate_service import ReplicateVideoService
 from app.firestore_database import db
 from app.middleware.clerk_auth import get_current_user_id, get_optional_user_id
@@ -247,8 +248,7 @@ async def _process_video_generation(job_id: str, request: VideoGenerationRequest
 @router.post("/generate", response_model=VideoGenerationResponse)
 async def generate_videos(
     req: Request,
-    request: VideoGenerationRequest,
-    background_tasks: BackgroundTasks
+    request: VideoGenerationRequest
 ) -> VideoGenerationResponse:
     """
     Initiate async video clip generation for all scenes.
@@ -256,13 +256,12 @@ async def generate_videos(
     This endpoint:
     1. Accepts scene data with seed image URLs
     2. Creates a job ID for tracking in Firestore
-    3. Initiates parallel video generation in the background
+    3. Cloud Function automatically triggers to process the job
     4. Returns immediately with job ID for status polling
 
     Args:
         req: FastAPI Request object (for auth)
         request: Video generation request with scenes and seed images
-        background_tasks: FastAPI background tasks manager
 
     Returns:
         VideoGenerationResponse with job_id for tracking
@@ -289,11 +288,11 @@ async def generate_videos(
                 detail=f"Scenes missing seed images: {scenes_without_images}"
             )
 
-        # Create job in Firestore
+        # Create job in Firestore (this will trigger Cloud Function)
         job_id = await _create_job(request, user_id)
-
-        # Start background video generation
-        background_tasks.add_task(_process_video_generation, job_id, request)
+        
+        # Note: Cloud Function will automatically process this job
+        # No background task needed - Cloud Function triggers on document creation
 
         return VideoGenerationResponse(
             success=True,

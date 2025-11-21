@@ -2,7 +2,7 @@
 import uuid
 from datetime import datetime
 from typing import Optional
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 from pathlib import Path
 
@@ -13,6 +13,7 @@ from app.models.composition_models import (
     CompositionJobStatusResponse,
     CompositionStatus
 )
+from app.models.job_models import CompositionJob, CompositionClipInput
 from app.services.ffmpeg_service import FFmpegCompositionService
 from app.firestore_database import db
 from app.middleware.clerk_auth import get_current_user_id, get_optional_user_id
@@ -239,8 +240,7 @@ async def _process_composition(job_id: str, request: CompositionRequest):
 @router.post("/compose", response_model=CompositionResponse)
 async def compose_video(
     req: Request,
-    request: CompositionRequest,
-    background_tasks: BackgroundTasks
+    request: CompositionRequest
 ) -> CompositionResponse:
     """
     Initiate video composition with transitions and audio.
@@ -248,13 +248,12 @@ async def compose_video(
     This endpoint:
     1. Accepts video clips and optional audio
     2. Creates a composition job in Firestore
-    3. Processes composition in the background
+    3. Cloud Function automatically triggers to process the job
     4. Returns job ID for status polling
 
     Args:
         req: FastAPI Request object (for auth)
         request: Composition request with clips and settings
-        background_tasks: FastAPI background tasks manager
 
     Returns:
         CompositionResponse with job_id for tracking
@@ -281,11 +280,11 @@ async def compose_video(
                 detail=f"Clips missing video URLs: {clips_without_urls}"
             )
 
-        # Create job in Firestore
+        # Create job in Firestore (this will trigger Cloud Function)
         job_id = await _create_composition_job(request, user_id)
-
-        # Start background composition
-        background_tasks.add_task(_process_composition, job_id, request)
+        
+        # Note: Cloud Function will automatically process this job
+        # No background task needed - Cloud Function triggers on document creation
 
         return CompositionResponse(
             success=True,

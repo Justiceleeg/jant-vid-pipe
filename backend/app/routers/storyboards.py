@@ -1,5 +1,5 @@
 """API router for storyboard operations."""
-from fastapi import APIRouter, HTTPException, status, BackgroundTasks, Request
+from fastapi import APIRouter, HTTPException, status, Request
 from fastapi.responses import StreamingResponse
 from typing import AsyncGenerator
 from pydantic import BaseModel
@@ -14,6 +14,7 @@ from app.models.storyboard_models import (
     SSESceneUpdate,
     ErrorResponse,
 )
+from app.models.job_models import ImageGenerationJob, VideoGenerationJob
 from app.services.storyboard_service import storyboard_service
 from app.services.product_service import get_product_service
 from app.services.replicate_service import get_replicate_service
@@ -25,7 +26,7 @@ from app.config import settings
 import json
 import asyncio
 from datetime import datetime
-import replicate
+import uuid
 
 router = APIRouter(
     prefix="/api/storyboards",
@@ -432,187 +433,24 @@ async def disable_product_composite(
 # Image Generation Endpoints
 # ============================================================================
 
-async def generate_image_task(scene_id: str):
-    """Background task to generate image using Replicate."""
-    print(f"[Image Generation] Starting image generation for scene {scene_id}")
-    try:
-        scene = db.get_scene(scene_id)
-        if not scene:
-            print(f"[Image Generation] Scene {scene_id} not found")
-            return
-
-        # Update status to generating
-        scene.generation_status.image = "generating"
-        db.update_scene(scene_id, scene)
-        print(f"[Image Generation] Updated scene {scene_id} status to 'generating'")
-
-        # Get Replicate token
-        replicate_token = settings.get_replicate_token()
-        if not replicate_token:
-            # No API key - use placeholder
-            print(f"[Image Generation] No Replicate token, using placeholder for scene {scene_id}")
-            scene.generation_status.image = "complete"
-            scene.image_url = f"https://via.placeholder.com/1080x1920/000000/FFFFFF?text=Scene+{scene_id[:8]}"
-            scene.state = "image"
-            db.update_scene(scene_id, scene)
-            print(f"[Image Generation] Placeholder image set for scene {scene_id}")
-            return
-
-        # Check if product compositing is enabled
-        if scene.use_product_composite and scene.product_id:
-            # Product compositing path
-            print(f"[Image Generation] Product compositing enabled for scene {scene_id}")
-            
-            # Get product service
-            product_service = get_product_service()
-            product = product_service.get_product_image(scene.product_id)
-            
-            if not product:
-                raise Exception(f"Product {scene.product_id} not found")
-            
-            # Get product image path (full path)
-            product_image_path = product_service.get_product_image_path(scene.product_id, thumbnail=False)
-            
-            if not product_image_path:
-                raise Exception(f"Product image file not found for {scene.product_id}")
-            
-            # Use Replicate service to generate scene with product
-            replicate_service = get_replicate_service()
-            
-            # Choose method based on feature flag
-            use_kontext = settings.USE_KONTEXT_COMPOSITE and settings.COMPOSITE_METHOD == "kontext"
-            
-            if use_kontext:
-                print(f"[Image Generation] Using Kontext composite method")
-                try:
-                    # Try Kontext method with timeout
-                    image_url = await asyncio.wait_for(
-                        replicate_service.generate_scene_with_kontext_composite(
-                            scene_text=scene.text,
-                            style_prompt=scene.style_prompt,
-                            product_image_path=str(product_image_path),
-                            width=1080,
-                            height=1920
-                        ),
-                        timeout=settings.KONTEXT_TIMEOUT_SECONDS
-                    )
-                    print(f"[Image Generation] Kontext composite succeeded")
-                    
-                except asyncio.TimeoutError:
-                    print(f"[Image Generation] Kontext timeout, falling back to PIL")
-                    
-                    # Record fallback
-                    metrics = get_composite_metrics()
-                    metrics.record_fallback()
-                    
-                    image_url = await replicate_service.generate_scene_with_product(
-                        scene_text=scene.text,
-                        style_prompt=scene.style_prompt,
-                        product_image_path=str(product_image_path),
-                        width=1080,
-                        height=1920
-                    )
-                    
-                except Exception as e:
-                    print(f"[Image Generation] Kontext failed: {e}, falling back to PIL")
-                    
-                    # Record fallback
-                    metrics = get_composite_metrics()
-                    metrics.record_fallback()
-                    
-                    # Silent fallback to PIL method
-                    image_url = await replicate_service.generate_scene_with_product(
-                        scene_text=scene.text,
-                        style_prompt=scene.style_prompt,
-                        product_image_path=str(product_image_path),
-                        width=1080,
-                        height=1920
-                    )
-            else:
-                print(f"[Image Generation] Using PIL composite method")
-                # Use PIL method (existing implementation)
-                image_url = await replicate_service.generate_scene_with_product(
-                    scene_text=scene.text,
-                    style_prompt=scene.style_prompt,
-                    product_image_path=str(product_image_path),
-                    width=1080,
-                    height=1920
-                )
-        else:
-            # Standard scene generation (existing logic)
-            # Generate image using Replicate
-            # Using Flux model for high-quality image generation
-            prompt = f"{scene.text}. Style: {scene.style_prompt}"
-            print(f"[Image Generation] Generating image for scene {scene_id} with prompt: {prompt[:100]}...")
-
-            # Create Replicate client with token
-            client = replicate.Client(api_token=replicate_token)
-            
-            output = await asyncio.to_thread(
-                client.run,
-                "black-forest-labs/flux-schnell",
-                input={
-                    "prompt": prompt,
-                    "width": 1080,
-                    "height": 1920,
-                    "num_outputs": 1,
-                }
-            )
-
-            print(f"[Image Generation] Replicate returned output for scene {scene_id}: {output}")
-
-            # Extract image URL from output
-            if not output or len(output) == 0:
-                raise Exception("No image generated")
-            
-            image_url = str(output[0]) if hasattr(output[0], '__str__') else output[0]
-            print(f"[Image Generation] Extracted image URL for scene {scene_id}: {image_url}")
-        
-        # Update scene with result (common for both paths)
-        # Update scene with image URL
-        scene.image_url = image_url
-        scene.generation_status.image = "complete"
-        scene.state = "image"
-        scene.error_message = None
-
-        db.update_scene(scene_id, scene)
-        print(f"[Image Generation] Successfully updated scene {scene_id} with image")
-        print(f"[Image Generation] Scene state after update: {scene.state}")
-        print(f"[Image Generation] Scene image_url after update: {scene.image_url}")
-        print(f"[Image Generation] Scene generation_status.image after update: {scene.generation_status.image}")
-        
-        # Verify the scene was saved correctly
-        verified_scene = db.get_scene(scene_id)
-        if verified_scene:
-            print(f"[Image Generation] Verified saved scene: state={verified_scene.state}, image_url={verified_scene.image_url}, status={verified_scene.generation_status.image}")
-        else:
-            print(f"[Image Generation] ERROR: Scene {scene_id} not found after update!")
-
-    except Exception as e:
-        # Update scene with error
-        print(f"[Image Generation] Error generating image for scene {scene_id}: {str(e)}")
-        import traceback
-        print(f"[Image Generation] Traceback: {traceback.format_exc()}")
-        scene = db.get_scene(scene_id)
-        if scene:
-            scene.generation_status.image = "error"
-            scene.error_message = f"Image generation failed: {str(e)}"
-            db.update_scene(scene_id, scene)
-            print(f"[Image Generation] Updated scene {scene_id} with error status")
-
+# Note: Image generation is now handled by Cloud Functions (functions/main.py)
+# The old generate_image_task background function has been removed.
 
 @router.post("/{storyboard_id}/scenes/{scene_id}/image/generate", response_model=SceneUpdateResponse)
 async def generate_scene_image(
     storyboard_id: str,
     scene_id: str,
-    background_tasks: BackgroundTasks
+    http_request: Request
 ):
     """
     Approve text and generate image for a scene.
 
-    This starts async image generation using Replicate.
+    This creates a Firestore job document that triggers a Cloud Function.
     """
     try:
+        # Get user_id from Clerk
+        user_id = await get_current_user_id(http_request)
+        
         scene = db.get_scene(scene_id)
         if not scene:
             raise HTTPException(
@@ -620,15 +458,30 @@ async def generate_scene_image(
                 detail=f"Scene {scene_id} not found"
             )
 
-        # Start image generation in background
-        print(f"[Image Generation] Adding background task for scene {scene_id}")
-        background_tasks.add_task(generate_image_task, scene_id)
-        print(f"[Image Generation] Background task added for scene {scene_id}")
+        # Create image generation job document
+        job = ImageGenerationJob(
+            job_id=str(uuid.uuid4()),
+            scene_id=scene_id,
+            storyboard_id=storyboard_id,
+            user_id=user_id,
+            text=scene.text,
+            style_prompt=scene.style_prompt or "",
+            use_product_composite=scene.use_product_composite,
+            product_id=scene.product_id,
+            status="pending"
+        )
+        
+        # Save job to Firestore (this triggers the Cloud Function)
+        db.db.collection('image_generation_jobs').document(job.job_id).set(
+            job.model_dump(exclude_none=True, by_alias=True),
+            merge=False
+        )
+        
+        print(f"[Image Generation] Created job document {job.job_id} for scene {scene_id}")
 
-        # Return immediately with generating status
+        # Update scene status to generating
         scene.generation_status.image = "generating"
         db.update_scene(scene_id, scene)
-        print(f"[Image Generation] Endpoint returning with 'generating' status for scene {scene_id}")
 
         return SceneUpdateResponse(
             success=True,
@@ -649,7 +502,7 @@ async def generate_scene_image(
 async def regenerate_scene_image(
     storyboard_id: str,
     scene_id: str,
-    background_tasks: BackgroundTasks
+    http_request: Request
 ):
     """
     Regenerate image for a scene.
@@ -657,6 +510,9 @@ async def regenerate_scene_image(
     This clears the existing image and starts new generation.
     """
     try:
+        # Get user_id from Clerk
+        user_id = await get_current_user_id(http_request)
+        
         scene = db.get_scene(scene_id)
         if not scene:
             raise HTTPException(
@@ -669,8 +525,24 @@ async def regenerate_scene_image(
         scene.generation_status.image = "generating"
         db.update_scene(scene_id, scene)
 
-        # Start image generation in background
-        background_tasks.add_task(generate_image_task, scene_id)
+        # Create image generation job document
+        job = ImageGenerationJob(
+            job_id=str(uuid.uuid4()),
+            scene_id=scene_id,
+            storyboard_id=storyboard_id,
+            user_id=user_id,
+            text=scene.text,
+            style_prompt=scene.style_prompt or "",
+            use_product_composite=scene.use_product_composite,
+            product_id=scene.product_id,
+            status="pending"
+        )
+        
+        # Save job to Firestore (this triggers the Cloud Function)
+        db.db.collection('image_generation_jobs').document(job.job_id).set(
+            job.model_dump(exclude_none=True, by_alias=True),
+            merge=False
+        )
 
         return SceneUpdateResponse(
             success=True,
@@ -691,105 +563,24 @@ async def regenerate_scene_image(
 # Video Generation Endpoints
 # ============================================================================
 
-async def generate_video_task(scene_id: str):
-    """Background task to generate video using Replicate."""
-    try:
-        scene = db.get_scene(scene_id)
-        if not scene:
-            return
-
-        # Update status to generating
-        scene.generation_status.video = "generating"
-        db.update_scene(scene_id, scene)
-
-        # Get Replicate token
-        replicate_token = settings.get_replicate_token()
-        if not replicate_token or not scene.image_url:
-            # No API key or no image - use placeholder
-            scene.generation_status.video = "complete"
-            scene.video_url = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
-            scene.state = "video"
-            db.update_scene(scene_id, scene)
-            return
-
-        # Generate video using Replicate (image-to-video model)
-        # Using ByteDance SeeDance-1 Pro Fast - supports longer videos
-        client = replicate.Client(api_token=replicate_token)
-        
-        # Convert relative image URL to full URL for Replicate API
-        full_image_url = settings.to_full_url(scene.image_url)
-        
-        # For localhost URLs, Replicate can't access them, so we need to convert to base64
-        # This is necessary for local development
-        if "localhost" in full_image_url or "127.0.0.1" in full_image_url:
-            # Extract the local file path from the URL
-            # e.g., http://localhost:8000/uploads/composites/file.png -> uploads/composites/file.png
-            from pathlib import Path
-            import base64
-            
-            local_path = full_image_url.split("/uploads/", 1)[-1]
-            local_file_path = f"uploads/{local_path}"
-            
-            # Check if file exists locally
-            if Path(local_file_path).exists():
-                try:
-                    # Convert to base64 data URI
-                    with open(local_file_path, 'rb') as f:
-                        image_data = f.read()
-                    base64_data = base64.b64encode(image_data).decode('utf-8')
-                    full_image_url = f"data:image/png;base64,{base64_data}"
-                    print(f"[Video Generation] Converted localhost URL to base64 data URI for scene {scene_id}")
-                except Exception as e:
-                    print(f"[Video Generation] Failed to convert to base64: {e}, will try URL anyway")
-        
-        output = await asyncio.to_thread(
-            client.run,
-            "bytedance/seedance-1-pro-fast",
-            input={
-                "image": full_image_url,
-                "prompt": scene.text,
-                "duration": scene.video_duration,
-            }
-        )
-
-        # Extract video URL from output
-        # Video output might be a list or a single URL
-        if output:
-            if isinstance(output, list) and len(output) > 0:
-                video_url = str(output[0]) if hasattr(output[0], '__str__') else output[0]
-            else:
-                video_url = str(output) if hasattr(output, '__str__') else output
-
-            # Update scene with video URL
-            scene.video_url = video_url
-            scene.generation_status.video = "complete"
-            scene.state = "video"
-            scene.error_message = None
-        else:
-            raise Exception("No video generated")
-
-        db.update_scene(scene_id, scene)
-
-    except Exception as e:
-        scene = db.get_scene(scene_id)
-        if scene:
-            scene.generation_status.video = "error"
-            scene.error_message = f"Video generation failed: {str(e)}"
-            db.update_scene(scene_id, scene)
-
+# Note: Video generation is now handled by Cloud Functions (functions/main.py)
+# The old generate_video_task background function has been removed.
 
 @router.post("/{storyboard_id}/scenes/{scene_id}/video/generate", response_model=SceneUpdateResponse)
 async def generate_scene_video(
     storyboard_id: str,
     scene_id: str,
-    background_tasks: BackgroundTasks
+    http_request: Request
 ):
     """
     Approve image and generate video for a scene.
 
-    This starts async video generation using Replicate.
+    This creates a Firestore job document that triggers a Cloud Function.
     """
     try:
+        # Get user_id from Clerk
+        user_id = await get_current_user_id(http_request)
+        
         scene = db.get_scene(scene_id)
         if not scene:
             raise HTTPException(
@@ -803,10 +594,27 @@ async def generate_scene_video(
                 detail="Cannot generate video without an image"
             )
 
-        # Start video generation in background
-        background_tasks.add_task(generate_video_task, scene_id)
+        # Create video generation job document
+        job = VideoGenerationJob(
+            job_id=str(uuid.uuid4()),
+            scene_id=scene_id,
+            storyboard_id=storyboard_id,
+            user_id=user_id,
+            image_url=scene.image_url,
+            text=scene.text,
+            duration=scene.video_duration or 5.0,
+            status="pending"
+        )
+        
+        # Save job to Firestore (this triggers the Cloud Function)
+        db.db.collection('video_generation_jobs').document(job.job_id).set(
+            job.model_dump(exclude_none=True, by_alias=True),
+            merge=False
+        )
+        
+        print(f"[Video Generation] Created job document {job.job_id} for scene {scene_id}")
 
-        # Return immediately with generating status
+        # Update scene status to generating
         scene.generation_status.video = "generating"
         db.update_scene(scene_id, scene)
 
@@ -829,7 +637,7 @@ async def generate_scene_video(
 async def regenerate_scene_video(
     storyboard_id: str,
     scene_id: str,
-    background_tasks: BackgroundTasks
+    http_request: Request
 ):
     """
     Regenerate video for a scene.
@@ -837,6 +645,9 @@ async def regenerate_scene_video(
     This clears the existing video and starts new generation.
     """
     try:
+        # Get user_id from Clerk
+        user_id = await get_current_user_id(http_request)
+        
         scene = db.get_scene(scene_id)
         if not scene:
             raise HTTPException(
@@ -855,8 +666,23 @@ async def regenerate_scene_video(
         scene.generation_status.video = "generating"
         db.update_scene(scene_id, scene)
 
-        # Start video generation in background
-        background_tasks.add_task(generate_video_task, scene_id)
+        # Create video generation job document
+        job = VideoGenerationJob(
+            job_id=str(uuid.uuid4()),
+            scene_id=scene_id,
+            storyboard_id=storyboard_id,
+            user_id=user_id,
+            image_url=scene.image_url,
+            text=scene.text,
+            duration=scene.video_duration or 5.0,
+            status="pending"
+        )
+        
+        # Save job to Firestore (this triggers the Cloud Function)
+        db.db.collection('video_generation_jobs').document(job.job_id).set(
+            job.model_dump(exclude_none=True, by_alias=True),
+            merge=False
+        )
 
         return SceneUpdateResponse(
             success=True,

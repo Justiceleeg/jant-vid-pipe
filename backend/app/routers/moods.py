@@ -1,5 +1,6 @@
 """FastAPI router for mood generation endpoints."""
-from fastapi import APIRouter, HTTPException
+import uuid
+from fastapi import APIRouter, HTTPException, Query
 
 from app.models.mood_models import (
     CreativeBriefInput,
@@ -10,6 +11,7 @@ from app.models.mood_models import (
 )
 from app.services.mood_service import MoodGenerationService
 from app.services.replicate_service import ReplicateImageService
+from app.services.firebase_storage_service import get_storage_service
 
 router = APIRouter(prefix="/api/moods", tags=["moods"])
 
@@ -34,21 +36,24 @@ def get_replicate_service() -> ReplicateImageService:
 
 @router.post("/generate", response_model=MoodGenerationResponse)
 async def generate_moods(
-    creative_brief: CreativeBriefInput
+    creative_brief: CreativeBriefInput,
+    project_id: str = Query(None, description="Optional project ID for organizing images in Firebase Storage")
 ) -> MoodGenerationResponse:
     """
     Generate 3 distinct mood boards with 4 images each from a creative brief.
-    
+
     This endpoint:
     1. Generates 3 distinct mood directions using AI
     2. Generates 4 images per mood (12 total) in parallel using Replicate
-    3. Returns complete mood data with images
-    
+    3. Saves images to Firebase Storage for persistence
+    4. Returns complete mood data with permanent image URLs
+
     Args:
         creative_brief: Creative brief data containing product info, audience, etc.
-    
+        project_id: Optional project ID for organizing images in Firebase Storage
+
     Returns:
-        MoodGenerationResponse with 3 moods, each containing 4 images
+        MoodGenerationResponse with 3 moods, each containing 4 permanent image URLs
     """
     try:
         # Convert Pydantic model to dict for service
@@ -115,27 +120,59 @@ async def generate_moods(
             height=image_height
         )
         print(f"Completed generation: {sum(1 for r in image_results if r['success'])}/{len(image_results)} successful")
-        
-        # Step 4: Organize images by mood
+
+        # Step 4: Save images to Firebase Storage if they were successfully generated
+        storage_service = get_storage_service() if project_id else None
+
+        # Step 5: Organize images by mood with Firebase Storage URLs
         moods_with_images = []
         for mood_idx, mood in enumerate(mood_directions):
             # Each mood gets images_per_mood images, so calculate the range
             start_idx = mood_idx * images_per_mood
             end_idx = start_idx + images_per_mood
-            
+
             # Get the image results for this mood
             mood_image_results = image_results[start_idx:end_idx]
-            
-            # Build MoodImage objects
+
+            # Build MoodImage objects with permanent storage URLs
             mood_images = []
-            for result in mood_image_results:
+            for img_idx, result in enumerate(mood_image_results):
+                image_url = result["image_url"] or ""
+
+                # If we have a successful image and a project_id, save to Firebase Storage
+                if result["success"] and image_url and project_id and storage_service:
+                    try:
+                        # Generate a unique ID for this image
+                        image_id = str(uuid.uuid4())
+
+                        # Create the Firebase Storage path
+                        storage_path = f"projects/{project_id}/moods/{mood['id']}/{image_id}.png"
+
+                        # Upload from Replicate URL to Firebase Storage
+                        print(f"Saving mood image to Firebase Storage: {storage_path}")
+                        firebase_url = storage_service.upload_from_url(
+                            url=image_url,
+                            path=storage_path,
+                            content_type="image/png",
+                            make_public=True
+                        )
+
+                        # Replace temporary Replicate URL with permanent Firebase URL
+                        image_url = firebase_url
+                        print(f"Saved mood image successfully: {firebase_url}")
+
+                    except Exception as e:
+                        # Log the error but don't fail the entire request
+                        print(f"Warning: Failed to save mood image to Firebase Storage: {e}")
+                        # Keep the original Replicate URL as fallback
+
                 mood_images.append(MoodImage(
-                    url=result["image_url"] or "",
+                    url=image_url,
                     prompt=result["prompt"],
                     success=result["success"],
                     error=result.get("error")
                 ))
-            
+
             moods_with_images.append(Mood(
                 id=mood["id"],
                 name=mood["name"],

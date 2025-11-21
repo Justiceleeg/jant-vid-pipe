@@ -6,7 +6,7 @@ import { LoadingFallback } from '@/components/ui/LoadingFallback';
 import { SkipToContent } from '@/components/ui/SkipToContent';
 import { useVisionChat } from '@/hooks/useVisionChat';
 import { useAppStore } from '@/store/appStore';
-import { useProjectStore } from '@/store/projectStore';
+import { useProject } from '@/hooks/useProject';
 import { ToastProvider } from '@/components/ui/Toast';
 import * as LazyComponents from '@/components/LazyComponents';
 import { STEPS } from '@/lib/steps';
@@ -19,28 +19,25 @@ function ChatContent() {
   const params = useParams();
   const projectId = params.id as string;
   const { creativeBrief, setCreativeBrief } = useAppStore();
-  const { loadProject, getCurrentProject, currentProjectId } = useProjectStore();
+  
+  // Use the new project hook to load project data from Firestore
+  const { project, isLoading: isProjectLoading, error: projectError } = useProject(projectId);
 
-  // Load project on mount
+  // Handle project loading errors
   useEffect(() => {
-    if (projectId && projectId !== currentProjectId) {
-      try {
-        loadProject(projectId);
-      } catch (error) {
-        console.error('Failed to load project:', error);
-        router.push('/projects');
-      }
-    }
-  }, [projectId, currentProjectId, loadProject, router]);
-
-  // Verify project exists
-  useEffect(() => {
-    const project = getCurrentProject();
-    if (projectId && !project) {
-      console.error('Project not found:', projectId);
+    if (projectError) {
+      console.error('[ChatPage] Failed to load project:', projectError);
+      alert('Failed to load project. Redirecting to projects page...');
       router.push('/projects');
     }
-  }, [projectId, getCurrentProject, router]);
+  }, [projectError, router]);
+
+  // Sync project data to app store when project loads
+  useEffect(() => {
+    if (project?.storyboard?.creativeBrief) {
+      setCreativeBrief(project.storyboard.creativeBrief);
+    }
+  }, [project, setCreativeBrief]);
 
   // Step 1: Vision Chat
   const {
@@ -67,6 +64,18 @@ function ChatContent() {
     useAppStore.getState().setCurrentStep(STEPS.MOOD);
     router.push(`/project/${projectId}/mood`);
   };
+
+  // Show loading state while project is loading
+  if (isProjectLoading) {
+    return (
+      <>
+        <SkipToContent />
+        <div className="min-h-screen bg-zinc-50 dark:bg-black flex items-center justify-center">
+          <LoadingFallback message="Loading project..." />
+        </div>
+      </>
+    );
+  }
 
   return (
     <>

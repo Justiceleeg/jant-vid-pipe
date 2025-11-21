@@ -1,9 +1,10 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
 import type { Project, ProjectMetadata, AppStateSnapshot, CreateProjectRequest, UpdateProjectRequest } from '@/types/project.types';
 import { migrateNumericStep } from '@/lib/steps';
 import { useAppStore } from './appStore';
 import { useSceneStore } from './sceneStore';
+import { projectsApi } from '@/lib/api/projects';
+import type { CreateProjectRequest as ApiCreateProjectRequest } from '@/types/project';
 
 const PROJECTS_STORAGE_KEY = 'jant-vid-pipe-projects';
 const CURRENT_PROJECT_STORAGE_KEY = 'jant-vid-pipe-current-project-id';
@@ -13,7 +14,7 @@ interface ProjectStoreState {
   currentProjectId: string | null;
 
   // CRUD operations
-  createProject: (request?: CreateProjectRequest) => string;
+  createProject: (request?: CreateProjectRequest) => Promise<string>;
   updateProject: (id: string, updates: UpdateProjectRequest) => void;
   deleteProject: (id: string) => void;
   duplicateProject: (id: string) => string;
@@ -90,20 +91,19 @@ function restoreAppState(snapshot: AppStateSnapshot): void {
   appStore.setFinalVideo(snapshot.finalVideo || null);
 }
 
-export const useProjectStore = create<ProjectStoreState>()(
-  persist(
-    (set, get) => ({
+export const useProjectStore = create<ProjectStoreState>((set, get) => ({
       projects: [],
       currentProjectId: null,
 
-      createProject: (request) => {
+      createProject: async (request) => {
         const state = get();
-        const projectId = crypto.randomUUID();
-        const now = new Date().toISOString();
         const name = request?.name || generateProjectName(state.projects);
 
+        // First create the project locally for immediate UI feedback
+        const tempId = crypto.randomUUID();
+        const now = new Date().toISOString();
         const newProject: Project = {
-          id: projectId,
+          id: tempId,
           name,
           createdAt: now,
           updatedAt: now,
@@ -112,16 +112,42 @@ export const useProjectStore = create<ProjectStoreState>()(
 
         set({
           projects: [...state.projects, newProject],
-          currentProjectId: projectId,
+          currentProjectId: tempId,
         });
 
         // Reset app store for new project
         useAppStore.getState().reset();
         useSceneStore.getState().reset();
 
-        console.log('[ProjectStore] Created new project:', { id: projectId, name });
+        try {
+          // Create project in backend with minimal data
+          const createRequest: ApiCreateProjectRequest = {
+            name,
+            description: '',
+            storyboardTitle: name,
+            // Don't send creative_brief or selectedMood until they're actually created
+          };
 
-        return projectId;
+          const createdProject = await projectsApi.create(createRequest);
+
+          // Update local state with the real project from backend
+          const updatedProjects = state.projects.map(p =>
+            p.id === tempId ? { ...p, id: createdProject.id } : p
+          );
+
+          set({
+            projects: updatedProjects,
+            currentProjectId: createdProject.id,
+          });
+
+          console.log('[ProjectStore] Created project in backend:', { id: createdProject.id, name });
+          return createdProject.id;
+        } catch (error) {
+          console.error('[ProjectStore] Failed to create project in backend:', error);
+          // Keep the local project for now, but return the temp ID
+          // The next sync attempt will try to create it again
+          return tempId;
+        }
       },
 
       updateProject: (id, updates) => {
@@ -242,7 +268,7 @@ export const useProjectStore = create<ProjectStoreState>()(
         }
       },
 
-      saveCurrentProject: () => {
+      saveCurrentProject: async () => {
         const state = get();
         if (!state.currentProjectId) return;
 
@@ -255,22 +281,45 @@ export const useProjectStore = create<ProjectStoreState>()(
 
         const updatedProjects = [...state.projects];
         const projectName = updatedProjects[projectIndex].name;
-        updatedProjects[projectIndex] = {
+        const projectToUpdate = {
           ...updatedProjects[projectIndex],
           appState: appStateSnapshot,
           storyboardId,
           updatedAt: new Date().toISOString(),
         };
 
+        // Update local state optimistically
+        updatedProjects[projectIndex] = projectToUpdate;
         set({ projects: updatedProjects });
-        
-        console.log('[ProjectStore] Auto-saved project:', { 
-          id: state.currentProjectId, 
-          name: projectName,
-          hasCreativeBrief: !!appStateSnapshot.creativeBrief,
-          moodsCount: appStateSnapshot.moods.length,
-          currentStep: appStateSnapshot.currentStep
-        });
+
+        // Sync with backend API
+        try {
+          // Convert local project format to backend format
+          const updateData = {
+            name: projectToUpdate.name,
+            storyboard: appStateSnapshot.creativeBrief ? {
+              id: storyboardId || crypto.randomUUID(),
+              title: appStateSnapshot.creativeBrief.brandName || projectName,
+              creativeBrief: appStateSnapshot.creativeBrief,
+              selectedMood: appStateSnapshot.moods.find(m => m.id === appStateSnapshot.selectedMoodId) || null,
+            } : null,
+            // Note: scenes will be handled separately via scene APIs
+          };
+
+          await projectsApi.update(state.currentProjectId, updateData);
+
+          console.log('[ProjectStore] Synced project to backend:', {
+            id: state.currentProjectId,
+            name: projectName,
+            hasCreativeBrief: !!appStateSnapshot.creativeBrief,
+            moodsCount: appStateSnapshot.moods.length,
+            currentStep: appStateSnapshot.currentStep
+          });
+        } catch (error) {
+          console.error('[ProjectStore] Failed to sync to backend:', error);
+          // Keep the optimistic update even if backend sync fails
+          // The next sync attempt will retry
+        }
       },
 
       scheduleAutoSave: () => {
@@ -337,23 +386,18 @@ export const useProjectStore = create<ProjectStoreState>()(
         // Priority 3: No image available, will use project name fallback
         return undefined;
       },
-    }),
-    {
-      name: PROJECTS_STORAGE_KEY,
-      storage: createJSONStorage(() => localStorage),
-      partialize: (state) => ({
-        projects: state.projects,
-        currentProjectId: state.currentProjectId,
-      }),
-    }
-  )
-);
+}));
 
-// Subscribe to appStore changes to trigger auto-save
+// Subscribe to appStore changes to trigger auto-save to backend
 if (typeof window !== 'undefined') {
   // Clean up old localStorage keys from previous persistence system
   const cleanupOldStorage = () => {
-    const oldKeys = ['jant-vid-pipe-app-state', 'jant-vid-pipe-storyboard-state'];
+    const oldKeys = [
+      'jant-vid-pipe-app-state',
+      'jant-vid-pipe-storyboard-state',
+      'jant-vid-pipe-projects',
+      'jant-vid-pipe-current-project-id'
+    ];
     oldKeys.forEach(key => {
       if (localStorage.getItem(key)) {
         console.log('[ProjectStore] Cleaning up old localStorage key:', key);
@@ -363,48 +407,16 @@ if (typeof window !== 'undefined') {
   };
   cleanupOldStorage();
 
+  // Subscribe to app state changes to sync with backend
   useAppStore.subscribe(() => {
-    useProjectStore.getState().scheduleAutoSave();
-  });
-
-  // On initial load, if there's a current project, restore its state
-  const initializeCurrentProject = () => {
-    const { currentProjectId, projects } = useProjectStore.getState();
-    if (currentProjectId && projects.length > 0) {
-      const currentProject = projects.find(p => p.id === currentProjectId);
-      if (currentProject) {
-        console.log('[ProjectStore] Restoring current project state on load:', currentProjectId);
-        restoreAppState(currentProject.appState);
-        
-        // Also restore storyboard if it exists
-        if (currentProject.storyboardId) {
-          console.log('[ProjectStore] Restoring storyboard on load:', currentProject.storyboardId);
-          useSceneStore.getState().loadStoryboard(currentProject.storyboardId).catch(err => {
-            // If storyboard not found, clear the reference
-            const projectStore = useProjectStore.getState();
-            if (err instanceof Error && err.message === 'STORYBOARD_NOT_FOUND') {
-              console.warn('[ProjectStore] Storyboard not found on restore, clearing reference');
-              projectStore.updateProject(currentProject.id, { storyboardId: undefined });
-            } else {
-              console.error('[ProjectStore] Failed to restore storyboard:', err);
-            }
-          });
-        }
-      }
-    }
-  };
-
-  // Wait for hydration to complete, then initialize
-  let hasInitialized = false;
-  const unsubscribe = useProjectStore.subscribe((state) => {
-    if (!hasInitialized && state.projects.length > 0) {
-      initializeCurrentProject();
-      hasInitialized = true;
-      unsubscribe();
+    const { currentProjectId } = useProjectStore.getState();
+    if (currentProjectId) {
+      // Instead of saving to localStorage, we'll sync to backend via API
+      useProjectStore.getState().scheduleAutoSave();
     }
   });
-  
-  // Also try immediately in case hydration already happened
-  initializeCurrentProject();
+
+  // Note: Project loading will now be handled by components using the
+  // useProject hook with real-time Firestore subscriptions
 }
 

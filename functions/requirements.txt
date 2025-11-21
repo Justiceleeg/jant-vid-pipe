@@ -1,0 +1,14 @@
+# Firebase Cloud Functions (Python 2nd Gen)
+functions-framework==3.*
+firebase-admin==6.*
+firebase-functions==0.4.*
+
+# API clients
+replicate==0.34.1
+openai==1.55.3
+
+# Utilities
+python-dotenv==1.0.0
+pydantic==2.10.3
+requests==2.32.3
+

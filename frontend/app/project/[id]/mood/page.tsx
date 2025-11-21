@@ -56,7 +56,7 @@ export default function MoodPage() {
 
   // Auto-generate moods when page loads if no moods exist
   useEffect(() => {
-    if (moods.length === 0 && !isMoodLoading && creativeBrief) {
+    if (moods.length === 0 && !isMoodLoading && creativeBrief && projectId) {
       const request: MoodGenerationRequest = {
         product_name: creativeBrief.product_name || 'Product',
         target_audience: creativeBrief.target_audience || 'General Audience',
@@ -64,9 +64,9 @@ export default function MoodPage() {
         visual_style_keywords: creativeBrief.visual_style_keywords || [],
         key_messages: creativeBrief.key_messages || [],
       };
-      generateMoodsFromBrief(request);
+      generateMoodsFromBrief(request, projectId);
     }
-  }, [moods.length, isMoodLoading, creativeBrief, generateMoodsFromBrief]);
+  }, [moods.length, isMoodLoading, creativeBrief, projectId, generateMoodsFromBrief]);
 
   // Auto-select first mood after moods are generated
   useEffect(() => {
@@ -76,8 +76,8 @@ export default function MoodPage() {
   }, [moods, selectedMoodId, selectMood]);
 
   const handleGenerateMoods = async () => {
-    if (!creativeBrief) return;
-    
+    if (!creativeBrief || !projectId) return;
+
     const request: MoodGenerationRequest = {
       product_name: creativeBrief.product_name || 'Product',
       target_audience: creativeBrief.target_audience || 'General Audience',
@@ -85,8 +85,8 @@ export default function MoodPage() {
       visual_style_keywords: creativeBrief.visual_style_keywords || [],
       key_messages: creativeBrief.key_messages || [],
     };
-    
-    await generateMoodsFromBrief(request);
+
+    await generateMoodsFromBrief(request, projectId);
   };
 
   const handleContinue = () => {
