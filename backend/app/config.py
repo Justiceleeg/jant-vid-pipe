@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     
     # Firebase Configuration (for public image URLs via Firebase Storage)
     FIREBASE_CREDENTIALS_PATH: str = "serviceAccountKey.json"
-    FIREBASE_STORAGE_BUCKET: str = "jant-vid-pipe-fire.firebasestorage.app"  # Your actual Firebase Storage bucket
+    FIREBASE_STORAGE_BUCKET: str = ""  # Set via FIREBASE_STORAGE_BUCKET env var or auto-detected
     
     # Modal API Keys (required for NeRF processing)
     MODAL_TOKEN_ID: str = ""

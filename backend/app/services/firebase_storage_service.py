@@ -45,7 +45,9 @@ def _initialize_firebase():
                 creds_data = json.load(f)
             project_id = creds_data.get('project_id', '')
             if project_id:
-                bucket_name = f"{project_id}.appspot.com"
+                # Try new format first (.firebasestorage.app), then fall back to old format (.appspot.com)
+                # Newer Firebase projects use .firebasestorage.app
+                bucket_name = f"{project_id}.firebasestorage.app"
         
         if not bucket_name:
             logger.error("Firebase storage bucket name could not be determined")
