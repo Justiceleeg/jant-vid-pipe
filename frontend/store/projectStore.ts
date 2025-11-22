@@ -59,8 +59,16 @@ function createAppStateSnapshot(): AppStateSnapshot {
   return {
     currentStep: appState.currentStep,
     creativeBrief: appState.creativeBrief,
+    chatMessages: appState.chatMessages.map(msg => ({
+      id: msg.id,
+      role: msg.role,
+      content: msg.content,
+      timestamp: msg.timestamp.toISOString(),
+    })),
     moods: appState.moods,
     selectedMoodId: appState.selectedMoodId,
+    backgroundAssets: appState.backgroundAssets || [],
+    selectedBackgroundIds: appState.selectedBackgroundIds || [],
     storyboardCompleted: appState.storyboardCompleted,
     audioUrl: appState.audioUrl,
     compositionJobId: appState.compositionJobId,
@@ -79,9 +87,20 @@ function restoreAppState(snapshot: AppStateSnapshot): void {
   
   appStore.setCurrentStep(currentStep);
   appStore.setCreativeBrief(snapshot.creativeBrief);
+  // Restore chat messages, converting ISO strings back to Date objects
+  appStore.setChatMessages(
+    (snapshot.chatMessages || []).map(msg => ({
+      id: msg.id,
+      role: msg.role,
+      content: msg.content,
+      timestamp: new Date(msg.timestamp),
+    }))
+  );
   appStore.setMoods(snapshot.moods);
   // Set selectedMoodId - if null, clear by setting to empty string
   appStore.selectMood(snapshot.selectedMoodId || '');
+  appStore.setBackgroundAssets(snapshot.backgroundAssets || []);
+  appStore.setSelectedBackgroundIds(snapshot.selectedBackgroundIds || []);
   appStore.setStoryboardCompleted(snapshot.storyboardCompleted);
   // Always set audioUrl, even if null, to clear previous project's audio
   appStore.setAudioUrl(snapshot.audioUrl || null);
@@ -107,6 +126,9 @@ export const useProjectStore = create<ProjectStoreState>((set, get) => ({
           name,
           createdAt: now,
           updatedAt: now,
+          brandAssetIds: request?.brandAssetIds || [],
+          characterAssetIds: request?.characterAssetIds || [],
+          backgroundAssetIds: request?.backgroundAssetIds || [],
           appState: createAppStateSnapshot(),
         };
 
@@ -125,6 +147,8 @@ export const useProjectStore = create<ProjectStoreState>((set, get) => ({
             name,
             description: '',
             storyboardTitle: name,
+            creativeBrief: null,
+            selectedMood: null,
             // Don't send creative_brief or selectedMood until they're actually created
           };
 
@@ -256,7 +280,10 @@ export const useProjectStore = create<ProjectStoreState>((set, get) => ({
           console.log('[ProjectStore] Loading storyboard for project:', project.storyboardId);
           useSceneStore.getState().loadStoryboard(project.storyboardId).catch(err => {
             // If storyboard not found, clear the reference
-            if (err instanceof Error && err.message === 'STORYBOARD_NOT_FOUND') {
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            if (errorMessage.includes('STORYBOARD_NOT_FOUND') || 
+                errorMessage.includes('404') || 
+                errorMessage.includes('not found')) {
               console.warn('[ProjectStore] Storyboard not found, clearing reference from project');
               get().updateProject(id, { storyboardId: undefined });
             } else {

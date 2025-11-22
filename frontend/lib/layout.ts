@@ -11,7 +11,7 @@ export const layoutClasses = {
    * Full screen height without scrolling
    * Use on root container to prevent page-level scrolling
    */
-  fullScreen: "h-screen overflow-hidden",
+  fullScreen: "h-screen",
   
   /**
    * Full height container that can scroll internally

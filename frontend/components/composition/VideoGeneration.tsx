@@ -17,14 +17,10 @@ interface VideoGenerationProps {
 
 export function VideoGeneration({ onComplete, onBack }: VideoGenerationProps) {
   const {
-    scenePlan,
     moods,
     selectedMoodId,
     creativeBrief,
-    generatedClips,
     audioUrl,
-    setGeneratedClips,
-    setVideoJobId,
   } = useAppStore();
   
   // Check if using storyboard flow instead
@@ -84,6 +80,9 @@ export function VideoGeneration({ onComplete, onBack }: VideoGenerationProps) {
     scene => scene.video_url && scene.generation_status.video === 'complete'
   ).length;
 
+  // Get clips from videoStatus
+  const generatedClips = videoStatus?.clips || [];
+
   // Debug: Log what's in the store
   useEffect(() => {
     console.log('🔍 Checking for existing clips:', {
@@ -104,151 +103,28 @@ export function VideoGeneration({ onComplete, onBack }: VideoGenerationProps) {
     }
   }, [generatedClips]);
 
-  // Sync video clips from job status to store
-  useEffect(() => {
-    console.log('📊 VideoGeneration - Job Status Update:', {
-      hasVideoStatus: !!videoStatus,
-      status: videoStatus?.status,
-      progress: videoStatus?.progress_percent,
-      clipsLength: videoStatus?.clips?.length,
-      clipsProgress: videoStatus?.clips?.map(c => `Scene ${c.scene_number}: ${c.progress_percent}%`)
-    });
-
-    if (videoStatus?.clips && videoStatus.clips.length > 0) {
-      console.log('💾 Saving clips to store:', videoStatus.clips.map(c => ({
-        scene: c.scene_number,
-        progress: c.progress_percent,
-        status: c.status
-      })));
-      setGeneratedClips(videoStatus.clips);
-      
-      console.log('✅ Clips saved to store');
-    }
-  }, [videoStatus, setGeneratedClips]);
-
   const handleStartGeneration = async () => {
     console.log('🎬 Starting video generation...');
-    console.log('📋 Scene Plan:', scenePlan);
     console.log('🎨 Selected Mood:', selectedMood);
 
     // Validation 1: Check required data
-    if (!scenePlan || !selectedMood) {
+    if (!selectedMood) {
       console.error('❌ Missing requirements:', {
-        scenePlan: !!scenePlan,
         selectedMood: !!selectedMood
       });
-      alert('Missing scene plan or mood selection. Please go back and complete previous steps.');
+      alert('Missing mood selection. Please go back and complete previous steps.');
       return;
     }
 
-    // Validation 2: Check scenes exist
-    if (!scenePlan.scenes || scenePlan.scenes.length === 0) {
-      console.error('❌ No scenes in scene plan');
-      alert('No scenes found in scene plan. Please go back to Step 3.');
+    // In storyboard mode, videos are generated per scene via the storyboard flow
+    // This function is for the legacy flow which is no longer used
+    if (isStoryboardMode) {
+      console.log('📋 Storyboard mode detected - videos should be generated via storyboard flow');
+      alert('Videos are generated through the storyboard. Please use the storyboard interface.');
       return;
     }
 
-    // Validation 3: Filter and validate scenes with seed images
-    const scenesWithImages = scenePlan.scenes.filter((s) => {
-      const hasUrl = !!s.seed_image_url;
-      const isValidUrl = hasUrl && s.seed_image_url!.trim().length > 0;
-      return isValidUrl;
-    });
-
-    console.log('📸 Scene validation:', {
-      totalScenes: scenePlan.scenes.length,
-      scenesWithImages: scenesWithImages.length,
-      sceneDetails: scenePlan.scenes.map(s => ({
-        number: s.scene_number,
-        hasImage: !!s.seed_image_url,
-        url: s.seed_image_url?.substring(0, 50) + '...',
-        urlLength: s.seed_image_url?.length || 0
-      }))
-    });
-
-    if (scenesWithImages.length === 0) {
-      const scenesWithoutImages = scenePlan.scenes
-        .filter(s => !s.seed_image_url)
-        .map(s => s.scene_number)
-        .join(', ');
-      
-      console.error('❌ No valid seed images found');
-      alert(
-        `No scenes with valid seed images found.\n\n` +
-        `Scenes missing images: ${scenesWithoutImages}\n\n` +
-        `Please go back to Step 3 and regenerate the scene plan.`
-      );
-      return;
-    }
-
-    // Validation 4: Warn if some scenes are missing images
-    if (scenesWithImages.length < scenePlan.scenes.length) {
-      const missingCount = scenePlan.scenes.length - scenesWithImages.length;
-      const scenesWithoutImages = scenePlan.scenes
-        .filter(s => !s.seed_image_url)
-        .map(s => s.scene_number)
-        .join(', ');
-      
-      console.warn(`⚠️ ${missingCount} scene(s) missing images: ${scenesWithoutImages}`);
-      
-      const proceed = confirm(
-        `Warning: ${missingCount} scene(s) are missing seed images (scenes: ${scenesWithoutImages}).\n\n` +
-        `Only ${scenesWithImages.length} scene(s) will be generated.\n\n` +
-        `Continue anyway?`
-      );
-      
-      if (!proceed) return;
-    }
-
-    // Validation 5: Test if URLs are accessible (sample check)
-    const firstImageUrl = scenesWithImages[0].seed_image_url!;
-    console.log('🔗 Testing first seed image URL:', firstImageUrl);
-    
-    try {
-      // Quick check if URL format is valid
-      new URL(firstImageUrl);
-      console.log('✅ URL format is valid');
-    } catch (e) {
-      console.error('❌ Invalid URL format:', e);
-      alert(
-        `Seed image URL appears to be invalid:\n\n${firstImageUrl}\n\n` +
-        `Please go back to Step 3 and regenerate scenes.`
-      );
-      return;
-    }
-
-    // Build request with validated scenes
-    const request: VideoGenerationRequest = {
-      scenes: scenesWithImages.map((scene) => ({
-        scene_number: scene.scene_number,
-        duration: scene.duration,
-        description: scene.description,
-        style_prompt: scene.style_prompt,
-        seed_image_url: scene.seed_image_url!,
-      })),
-      mood_style_keywords: selectedMood.style_keywords,
-      mood_aesthetic_direction: selectedMood.aesthetic_direction,
-    };
-
-    console.log('📤 Sending validated request:', {
-      sceneCount: request.scenes.length,
-      scenes: request.scenes.map(s => ({
-        scene: s.scene_number,
-        imageUrl: s.seed_image_url.substring(0, 50) + '...'
-      })),
-      moodKeywords: request.mood_style_keywords
-    });
-
-    setHasStarted(true);
-    const jobId = await startGeneration(request);
-
-    if (jobId) {
-      setVideoJobId(jobId);
-      console.log('✅ Video generation started successfully. Job ID:', jobId);
-    } else {
-      console.error('❌ No job ID returned - generation may have failed');
-      setHasStarted(false);
-    }
+    alert('Video generation via this flow is no longer supported. Please use the storyboard flow.');
   };
 
   const isComplete = videoStatus?.status === 'completed' ||
@@ -370,7 +246,13 @@ export function VideoGeneration({ onComplete, onBack }: VideoGenerationProps) {
           )}
           <VideoGenerationProgress
             jobStatus={videoStatus}
-            scenes={scenePlan?.scenes}
+            scenes={isStoryboardMode ? storyboardScenes.map((scene, index) => ({
+              scene_number: index + 1,
+              duration: scene.video_duration,
+              description: scene.text,
+              style_prompt: scene.style_prompt,
+              seed_image_url: scene.image_url || null,
+            })) : []}
           />
         </>
       )}

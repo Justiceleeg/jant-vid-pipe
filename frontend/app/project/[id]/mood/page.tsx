@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, Suspense, useState } from 'react';
+import { useEffect, Suspense, useState, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useMoodGeneration } from '@/hooks/useMoodGeneration';
 import { useAppStore } from '@/store/appStore';
@@ -46,9 +46,37 @@ export default function MoodPage() {
   
   const [isInitializingScenes, setIsInitializingScenes] = useState(false);
 
-  // Auto-generate moods when page loads if no moods exist
+  // Track the last brief used for mood generation
+  const lastBriefRef = useRef<string | null>(null);
+
+  // Create a hash of the brief to detect changes
+  const getBriefHash = (brief: typeof creativeBrief): string => {
+    if (!brief) return '';
+    return JSON.stringify({
+      product_name: brief.product_name,
+      target_audience: brief.target_audience,
+      emotional_tone: brief.emotional_tone,
+      visual_style_keywords: brief.visual_style_keywords,
+      key_messages: brief.key_messages,
+    });
+  };
+
+  // Auto-generate or regenerate moods when brief changes
   useEffect(() => {
-    if (moods.length === 0 && !isMoodLoading && creativeBrief && projectId) {
+    if (!creativeBrief || isMoodLoading) return;
+
+    const currentBriefHash = getBriefHash(creativeBrief);
+    const lastBriefHash = lastBriefRef.current;
+
+    // Regenerate if:
+    // 1. No moods exist (first time)
+    // 2. Brief hash changed (brief was updated)
+    // 3. Moods exist but we don't have a hash (component remounted - regenerate to be safe)
+    const shouldRegenerate = 
+      moods.length === 0 || // No moods yet
+      (currentBriefHash !== lastBriefHash && currentBriefHash !== ''); // Brief changed
+
+    if (shouldRegenerate) {
       const request: MoodGenerationRequest = {
         product_name: creativeBrief.product_name || 'Product',
         target_audience: creativeBrief.target_audience || 'General Audience',
@@ -56,9 +84,17 @@ export default function MoodPage() {
         visual_style_keywords: creativeBrief.visual_style_keywords || [],
         key_messages: creativeBrief.key_messages || [],
       };
+      // Clear existing moods and selection when regenerating
+      if (moods.length > 0) {
+        const { setMoods } = useAppStore.getState();
+        setMoods([]);
+        useAppStore.setState({ selectedMoodId: null });
+      }
+
       generateMoodsFromBrief(request, projectId);
+      lastBriefRef.current = currentBriefHash;
     }
-  }, [moods.length, isMoodLoading, creativeBrief, projectId, generateMoodsFromBrief]);
+  }, [creativeBrief, isMoodLoading, moods.length, generateMoodsFromBrief, projectId]);
 
   // Auto-select first mood after moods are generated
   useEffect(() => {
@@ -68,8 +104,13 @@ export default function MoodPage() {
   }, [moods, selectedMoodId, selectMood]);
 
   const handleGenerateMoods = async () => {
-    if (!creativeBrief || !projectId) return;
-
+    if (!creativeBrief) return;
+    
+    // Clear existing moods and selection when regenerating
+    const { setMoods } = useAppStore.getState();
+    setMoods([]);
+    useAppStore.setState({ selectedMoodId: null });
+    
     const request: MoodGenerationRequest = {
       product_name: creativeBrief.product_name || 'Product',
       target_audience: creativeBrief.target_audience || 'General Audience',
@@ -81,24 +122,10 @@ export default function MoodPage() {
     await generateMoodsFromBrief(request, projectId);
   };
 
-  const handleContinue = async () => {
-    try {
-      setIsInitializingScenes(true);
-      
-      // Initialize scenes in project document before navigating
-      await projectsApi.initializeScenes(projectId);
-      
-      // Navigate to scenes page
-      setCurrentStep(STEPS.SCENES);
-      router.push(`/project/${projectId}/scenes`);
-    } catch (error) {
-      console.error('Failed to initialize scenes:', error);
-      // Still navigate to scenes page - scenes might already exist
-      setCurrentStep(STEPS.SCENES);
-      router.push(`/project/${projectId}/scenes`);
-    } finally {
-      setIsInitializingScenes(false);
-    }
+  const handleContinue = () => {
+    // Navigate to backgrounds page
+    setCurrentStep(STEPS.BACKGROUNDS);
+    router.push(`/project/${projectId}/backgrounds`);
   };
 
   const handleBack = () => {
@@ -108,44 +135,52 @@ export default function MoodPage() {
   };
 
   return (
-    <div className="flex min-h-[calc(100vh-80px)] sm:min-h-[calc(100vh-100px)] items-center justify-center p-3 sm:p-4 md:p-6 lg:p-8 animate-fadeIn">
-      <div className="w-full max-w-7xl space-y-3 sm:space-y-4 md:space-y-6 pt-4 sm:pt-6 md:pt-8">
-        {/* Back button */}
-        <button
-          onClick={handleBack}
-          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-all duration-200 hover:gap-3 animate-slideUp"
-        >
-          <svg
-            className="w-4 h-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M15 19l-7-7 7-7"
-            />
-          </svg>
-          Back to Chat
-        </button>
+    <div className="min-h-screen pt-[calc(3.5rem+1.5rem)] flex flex-col">
+      <main className="flex-1 flex flex-col animate-fadeIn overflow-visible">
+        <div className="flex-1 flex flex-col min-h-0 w-full">
+          {/* Back button - centered with padding */}
+          <div className="w-full flex justify-center px-4 sm:px-6 lg:px-8 mb-2">
+            <div className="w-full max-w-7xl">
+              <button
+                onClick={handleBack}
+                className="flex items-center gap-1.5 text-[10px] sm:text-xs text-muted-foreground hover:text-foreground transition-all duration-200 hover:gap-2 animate-slideUp flex-shrink-0"
+              >
+                <svg
+                  className="w-3 h-3"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 19l-7-7 7-7"
+                  />
+                </svg>
+                Back to Chat
+              </button>
+            </div>
+          </div>
 
-        {/* Mood Board Component */}
-        <div className="animate-slideUp animation-delay-100">
-          <Suspense fallback={<StepSkeleton />}>
-            <MoodBoard
-              moods={moods}
-              selectedMoodId={selectedMoodId}
-              onSelectMood={selectMood}
-              onGenerate={handleGenerateMoods}
-              onContinue={handleContinue}
-              isLoading={isMoodLoading || isInitializingScenes}
-              error={moodError}
-            />
-          </Suspense>
+          {/* Mood Board Component - centered, full width available, overflow allowed */}
+          <div className="flex-1 min-h-0 w-full flex justify-center animate-slideUp animation-delay-100 overflow-visible">
+            <div className="w-full max-w-7xl px-4 sm:px-6 lg:px-8 overflow-visible">
+              <Suspense fallback={<StepSkeleton />}>
+                <MoodBoard
+                  moods={moods}
+                  selectedMoodId={selectedMoodId}
+                  onSelectMood={selectMood}
+                  onGenerate={handleGenerateMoods}
+                  onContinue={handleContinue}
+                  isLoading={isMoodLoading}
+                  error={moodError}
+                />
+              </Suspense>
+            </div>
+          </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

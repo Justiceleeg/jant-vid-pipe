@@ -1,8 +1,7 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { useAppStore } from '@/store/appStore';
 import { useProductUpload } from '@/hooks/useProductUpload';
 import { useCOLMAP } from '@/hooks/useCOLMAP';
 
@@ -11,8 +10,8 @@ interface ProductUploadProps {
 }
 
 export function ProductUpload({ onContinue }: ProductUploadProps) {
-  const { productImages, setProductImages } = useAppStore();
-  const { upload, isUploading, uploadProgress, error, clearError } = useProductUpload();
+  const [productImages, setProductImages] = useState<File[]>([]);
+  const { uploadProduct, uploadedProduct, isUploading, uploadProgress, error, clearError } = useProductUpload();
   const { start: startCOLMAP } = useCOLMAP();
   const [dragActive, setDragActive] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -89,25 +88,51 @@ export function ProductUpload({ onContinue }: ProductUploadProps) {
     }
   };
 
+  const [pendingUpload, setPendingUpload] = useState(false);
+
+  // Handle upload completion and start COLMAP
+  useEffect(() => {
+    if (pendingUpload && uploadedProduct?.product_id) {
+      const startPipeline = async () => {
+        try {
+          console.log('[ProductUpload] Starting COLMAP for product:', uploadedProduct.product_id);
+          await startCOLMAP({
+            job_id: uploadedProduct.product_id,
+          });
+          
+          // Proceed to next step (pipeline view)
+          setPendingUpload(false);
+          onContinue();
+        } catch (err) {
+          console.error('[ProductUpload] COLMAP start failed:', err);
+          setPendingUpload(false);
+        }
+      };
+      startPipeline();
+    }
+  }, [uploadedProduct, pendingUpload, startCOLMAP, onContinue]);
+
   const handleContinue = async () => {
     if (!productImages || productImages.length === 0) {
       return;
     }
 
-    // Upload images (goes directly to Modal)
-    const jobId = await upload();
-    
-    if (jobId) {
-      // Upload successful, start COLMAP immediately
-      console.log('[ProductUpload] Starting COLMAP for job:', jobId);
-      await startCOLMAP({
-        job_id: jobId,
-      });
-      
-      // Proceed to next step (pipeline view)
-      onContinue();
+    // Upload first image (API currently supports single file upload)
+    // TODO: Update to support bulk upload when API is available
+    const firstFile = productImages[0];
+    if (!firstFile) {
+      return;
     }
-    // If upload fails, error is already set and displayed
+
+    try {
+      setPendingUpload(true);
+      await uploadProduct(firstFile);
+      // The useEffect will handle the rest when uploadedProduct is set
+    } catch (err) {
+      // Error is already set by uploadProduct hook
+      console.error('[ProductUpload] Upload failed:', err);
+      setPendingUpload(false);
+    }
   };
 
   const hasImages = productImages.length > 0;

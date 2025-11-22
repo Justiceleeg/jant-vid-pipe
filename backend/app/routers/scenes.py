@@ -137,13 +137,13 @@ async def generate_seed_images(
             image_width = settings.IMAGE_WIDTH
             image_height = settings.IMAGE_HEIGHT
         elif settings.is_development():
-            # Dev: Lower resolution for faster generation
-            image_width = 640
-            image_height = 1136
+            # Dev: Lower resolution for faster generation (16:9 aspect ratio)
+            image_width = 1280
+            image_height = 720
         else:
-            # Prod: Full HD vertical
-            image_width = 1080
-            image_height = 1920
+            # Prod: Full HD landscape (16:9 aspect ratio)
+            image_width = 1920
+            image_height = 1080
 
         # Generate seed images for all scenes in parallel
         print(f"Generating {len(scenes_list)} seed images at {image_width}x{image_height}...")

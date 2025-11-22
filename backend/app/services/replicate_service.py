@@ -11,9 +11,12 @@ import io
 import base64
 import shutil
 import time
+import logging
 from app.config import settings
 from app.services.rate_limiter import get_kontext_rate_limiter
 from app.services.metrics_service import get_composite_metrics
+
+logger = logging.getLogger(__name__)
 
 
 class ReplicateImageService:
@@ -21,13 +24,13 @@ class ReplicateImageService:
     
     # Production model: SDXL (higher quality, more expensive, slower)
     # Quality: Excellent detail, great prompt following, professional results
-    # Speed: ~30-60 seconds per 1080x1920 image
+    # Speed: ~30-60 seconds per 1920x1080 image
     # Verified model on Replicate
     PRODUCTION_IMAGE_MODEL = "stability-ai/sdxl:39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b"
     
     # Development model: Use SDXL with optimized settings (same model, faster params)
     # We use the same SDXL model but with:
-    # - Lower resolution (640x1136 vs 1080x1920) = 4x faster
+    # - Lower resolution (1280x720 vs 1920x1080) = 4x faster
     # - Fewer inference steps (20 vs 50) = 2.5x faster
     # - Lower guidance scale = slightly faster
     # This is verified to work and is much faster while still using a real model
@@ -214,9 +217,9 @@ class ReplicateImageService:
             # Dev: Lower resolution + fewer steps = shorter timeout
             # Prod: Higher resolution + more steps = longer timeout
             if settings.is_development():
-                timeout = 60  # Dev: SDXL at 640x1136 with 20 steps should finish in ~20-40s
+                timeout = 60  # Dev: SDXL at 1280x720 with 20 steps should finish in ~20-40s
             else:
-                timeout = 90  # Prod: SDXL at 1080x1920 with 50 steps can take 30-60s
+                timeout = 90  # Prod: SDXL at 1920x1080 with 50 steps can take 30-60s
             
             return await self.generate_image(prompt, width, height, 1, model, timeout=timeout)
         except asyncio.TimeoutError:
@@ -273,7 +276,7 @@ class ReplicateImageService:
         # Add quality and format specifications - keep it professional
         components.append("Professional product photography")
         components.append("Clean, modern composition")
-        components.append("Vertical 9:16 aspect ratio")
+        components.append("Landscape 16:9 aspect ratio")
         components.append("High quality, commercial style")
         components.append("Suitable for advertising and marketing")
         
@@ -339,7 +342,7 @@ class ReplicateImageService:
 
         # Add quality specifications
         components.append("Professional cinematic frame")
-        components.append("Vertical 9:16 aspect ratio")
+        components.append("Landscape 16:9 aspect ratio")
         components.append("High quality, suitable for video production")
         components.append("Clean composition")
 
@@ -355,8 +358,8 @@ class ReplicateImageService:
         mood_style_keywords: List[str],
         mood_color_palette: List[str],
         mood_aesthetic_direction: str,
-        width: int = 1080,
-        height: int = 1920
+        width: int = 1920,
+        height: int = 1080
     ) -> List[Dict[str, Any]]:
         """
         Generate seed images for multiple scenes in parallel.
@@ -366,8 +369,8 @@ class ReplicateImageService:
             mood_style_keywords: Style keywords from selected mood
             mood_color_palette: Color palette from selected mood
             mood_aesthetic_direction: Aesthetic direction from selected mood
-            width: Image width (default: 1080 for prod quality)
-            height: Image height (default: 1920 for 9:16 vertical)
+            width: Image width (default: 1920 for prod quality - 16:9 landscape)
+            height: Image height (default: 1080 for 16:9 landscape)
 
         Returns:
             List of dictionaries with scene data and generated image URLs
@@ -427,8 +430,8 @@ class ReplicateImageService:
         scene_text: str,
         style_prompt: str,
         product_image_path: str,
-        width: int = 1080,
-        height: int = 1920
+        width: int = 1920,
+        height: int = 1080
     ) -> str:
         """
         Generate scene image with product composited in.
@@ -444,38 +447,50 @@ class ReplicateImageService:
             scene_text: Scene description
             style_prompt: Style/mood prompt
             product_image_path: Path to product image file
-            width: Target width (default 1080)
-            height: Target height (default 1920)
+            width: Target width (default 1920 for 16:9 landscape)
+            height: Target height (default 1080 for 16:9 landscape)
         
         Returns:
             URL to generated composited image
         """
         print(f"[Product Composite] Generating scene with product")
         
-        # Stage 1: Generate scene background
+        # Stage 1: Generate scene background using nano-banana-pro
         # Add "empty space in center" to prompt to leave room for product
-        bg_prompt = f"{scene_text}. {style_prompt}. empty space in center for product placement. elegant composition."
+        bg_prompt = f"{scene_text}. {style_prompt}. empty space in center for product placement. elegant composition. landscape orientation, horizontal composition."
         
-        print(f"[Product Composite] Generating background scene...")
+        print(f"[Product Composite] Generating background scene with nano-banana-pro...")
         
-        # Use the standard generate_image method with flux-schnell for consistency
+        # Use nano-banana-pro for 16:9 landscape generation
+        input_params = {
+            "prompt": bg_prompt,
+            "resolution": "1K",  # 1920x1080 = 1K resolution
+            "aspect_ratio": "16:9",  # Landscape orientation
+            "image_input": [],  # No control images for background
+            "output_format": "png",
+            "safety_filter_level": "block_only_high"
+        }
+        
         output = await asyncio.to_thread(
             self.client.run,
-            "black-forest-labs/flux-schnell",
-            input={
-                "prompt": bg_prompt,
-                "width": width,
-                "height": height,
-                "num_outputs": 1,
-                "output_format": "png",
-                "output_quality": 90,
-            }
+            "google/nano-banana-pro",
+            input=input_params
         )
         
-        if not output or not isinstance(output, list) or len(output) == 0:
-            raise Exception("No output from Replicate for background")
+        # Extract image URL from nano-banana-pro output
+        if not output:
+            raise Exception("No output from nano-banana-pro for background")
         
-        bg_image_url = output[0]
+        if isinstance(output, list) and len(output) > 0:
+            bg_image_url = str(output[0])
+        elif isinstance(output, str):
+            bg_image_url = output
+        elif hasattr(output, 'url'):
+            bg_image_url = output.url
+        elif hasattr(output, '__str__'):
+            bg_image_url = str(output)
+        else:
+            raise Exception(f"Unexpected output format from nano-banana-pro: {type(output)}")
         
         # Stage 2: Composite product onto scene
         print(f"[Product Composite] Compositing product onto scene...")
@@ -549,7 +564,7 @@ class ReplicateImageService:
            - If RGB: Direct paste
         
         Args:
-            background: Background scene image (e.g., 1080x1920)
+            background: Background scene image (e.g., 1920x1080)
             product: Product image (any size, any format)
             max_product_width_percent: Max width as % of bg (default 50)
             max_product_height_percent: Max height as % of bg (default 60)
@@ -558,12 +573,12 @@ class ReplicateImageService:
             Composited image (same size as background)
         
         Example:
-            Background: 1080x1920
+            Background: 1920x1080
             Product: 2048x2048
-            Max dimensions: 540x1152
-            Scale factor: min(540/2048, 1152/2048, 1.0) = 0.264
-            New size: 540x540
-            Position: x=270, y=690 (centered)
+            Max dimensions: 960x648
+            Scale factor: min(960/2048, 648/2048, 1.0) = 0.316
+            New size: 648x648
+            Position: x=636, y=216 (centered)
         """
         bg_width, bg_height = background.size
         prod_width, prod_height = product.size
@@ -716,8 +731,8 @@ class ReplicateImageService:
         scene_text: str,
         style_prompt: str,
         product_image_path: str,
-        width: int = 1080,
-        height: int = 1920
+        width: int = 1920,
+        height: int = 1080
     ) -> str:
         """
         Generate scene with product using FLUX Kontext multi-image.
@@ -749,29 +764,42 @@ class ReplicateImageService:
             # Acquire rate limit slot
             rate_limiter = get_kontext_rate_limiter()
             async with rate_limiter:
-                # Stage 1: Generate base scene background
-                # Use full prompt without "empty space" modification
-                bg_prompt = f"{scene_text}. {style_prompt}"
+                # Stage 1: Generate base scene background using nano-banana-pro
+                # Use full prompt with landscape orientation
+                bg_prompt = f"{scene_text}. {style_prompt}. landscape orientation, horizontal composition."
                 
-                print(f"[Kontext Composite] Generating base scene...")
+                print(f"[Kontext Composite] Generating base scene with nano-banana-pro...")
+                
+                # Use nano-banana-pro for 16:9 landscape generation
+                input_params = {
+                    "prompt": bg_prompt,
+                    "resolution": "1K",  # 1920x1080 = 1K resolution
+                    "aspect_ratio": "16:9",  # Landscape orientation
+                    "image_input": [],  # No control images for background
+                    "output_format": "png",
+                    "safety_filter_level": "block_only_high"
+                }
                 
                 output = await asyncio.to_thread(
                     self.client.run,
-                    "black-forest-labs/flux-schnell",
-                    input={
-                        "prompt": bg_prompt,
-                        "width": width,
-                        "height": height,
-                        "num_outputs": 1,
-                        "output_format": "png",
-                        "output_quality": 90,
-                    }
+                    "google/nano-banana-pro",
+                    input=input_params
                 )
                 
-                if not output or not isinstance(output, list) or len(output) == 0:
-                    raise Exception("No output from Replicate for base scene")
+                # Extract image URL from nano-banana-pro output
+                if not output:
+                    raise Exception("No output from nano-banana-pro for base scene")
                 
-                base_scene_url = output[0]
+                if isinstance(output, list) and len(output) > 0:
+                    base_scene_url = str(output[0])
+                elif isinstance(output, str):
+                    base_scene_url = output
+                elif hasattr(output, 'url'):
+                    base_scene_url = output.url
+                elif hasattr(output, '__str__'):
+                    base_scene_url = str(output)
+                else:
+                    raise Exception(f"Unexpected output format from nano-banana-pro: {type(output)}")
                 print(f"[Kontext Composite] Base scene generated: {base_scene_url}")
                 
                 # Stage 2: Prepare product image
@@ -851,18 +879,301 @@ Ensure the product appears as part of the original scene."""
             metrics.record_kontext_call(success=False, duration_seconds=duration)
             raise
 
+    async def generate_scene_with_assets(
+        self,
+        scene_text: str,
+        style_prompt: str,
+        brand_asset_image_url: Optional[str] = None,
+        character_asset_image_url: Optional[str] = None,
+        background_asset_image_url: Optional[str] = None,
+        brand_asset_filename: Optional[str] = None,
+        character_asset_filename: Optional[str] = None,
+        background_asset_filename: Optional[str] = None,
+        width: int = 1920,
+        height: int = 1080
+    ) -> str:
+        """
+        Generate scene image using google/nano-banana-pro with brand, character, and background assets as control images.
+        
+        This creates the starting image (first frame) for the scene with assets naturally integrated.
+        Uses 16:9 aspect ratio (1920x1080), PNG format, and landscape orientation.
+        
+        Args:
+            scene_text: Scene description
+            style_prompt: Style/mood prompt
+            brand_asset_image_url: URL to brand asset image (for control image)
+            character_asset_image_url: URL to character asset image (for control image)
+            background_asset_image_url: URL to background asset image (for control image)
+            brand_asset_filename: Filename of brand asset (for prompt description)
+            character_asset_filename: Filename of character asset (for prompt description)
+            background_asset_filename: Filename of background asset (for prompt description)
+            width: Target width (default 1920 for 16:9)
+            height: Target height (default 1080 for 16:9)
+        
+        Returns:
+            URL to generated image
+        """
+        logger.info("="*80)
+        logger.info("🍌 GENERATING SCENE WITH ASSETS USING google/nano-banana-pro")
+        logger.info("="*80)
+        
+        # Build prompt that merges scene text, asset descriptions, style, and starting frame context
+        # Specify landscape orientation explicitly
+        prompt_parts = [scene_text]
+        
+        # Add landscape orientation specification
+        prompt_parts.append("landscape orientation, horizontal composition")
+        
+        # Add asset descriptions naturally
+        if brand_asset_filename:
+            prompt_parts.append(f"featuring brand elements from {brand_asset_filename}")
+        if character_asset_filename:
+            prompt_parts.append(f"with character from {character_asset_filename}")
+        if background_asset_filename:
+            prompt_parts.append(f"set against background from {background_asset_filename}")
+        
+        # Add style
+        if style_prompt:
+            prompt_parts.append(style_prompt)
+        
+        # Add starting frame context
+        prompt_parts.append("This is the starting frame of the scene, establishing the visual composition before action begins.")
+        
+        # Merge all parts naturally
+        full_prompt = ". ".join(prompt_parts)
+        
+        # Log the Scene Description
+        logger.info("📝 SCENE DESCRIPTION:")
+        logger.info(f"  Scene Text: {scene_text}")
+        logger.info(f"  Style Prompt: {style_prompt}")
+        
+        # Log the full prompt being sent
+        logger.info("📝 PROMPT BEING SENT TO google/nano-banana-pro:")
+        logger.info("-"*80)
+        logger.info(full_prompt)
+        logger.info("-"*80)
+        
+        # Collect control images and convert localhost URLs to base64
+        # Replicate cannot access localhost URLs, so we need to convert them to base64 data URIs
+        control_images = []
+        
+        async def ensure_public_url(image_url: Optional[str], asset_type: str) -> Optional[str]:
+            """Convert localhost URLs to base64 data URIs for Replicate compatibility."""
+            if not image_url:
+                return None
+            
+            # If it's already a public URL (starts with http:// or https:// and not localhost), use it as-is
+            if image_url.startswith(("http://", "https://")) and "localhost" not in image_url and "127.0.0.1" not in image_url:
+                return image_url
+            
+            # If it's a localhost URL, convert to base64
+            if "localhost" in image_url or "127.0.0.1" in image_url:
+                logger.info(f"🔄 Converting {asset_type} localhost URL to base64 for Replicate compatibility")
+                try:
+                    # Fetch the image from localhost
+                    response = requests.get(image_url, timeout=10)
+                    if response.status_code == 200:
+                        # Determine content type from response headers
+                        content_type = response.headers.get('content-type', 'image/png')
+                        # Convert to base64 data URI
+                        base64_data = base64.b64encode(response.content).decode('utf-8')
+                        data_uri = f"data:{content_type};base64,{base64_data}"
+                        logger.info(f"✓ Converted {asset_type} to base64 data URI ({len(base64_data)} chars)")
+                        return data_uri
+                    else:
+                        logger.warning(f"⚠️  Failed to fetch {asset_type} from {image_url}: HTTP {response.status_code}")
+                        return None
+                except Exception as e:
+                    logger.error(f"❌ Error converting {asset_type} URL to base64: {e}")
+                    return None
+            
+            # If it's a relative path, convert to full URL first, then check if localhost
+            if not image_url.startswith(("http://", "https://")):
+                full_url = settings.to_full_url(image_url)
+                return await ensure_public_url(full_url, asset_type)
+            
+            return image_url
+        
+        # Convert all control image URLs to public URLs or base64
+        # nano-banana-pro supports up to 14 images according to documentation
+        if brand_asset_image_url:
+            converted_brand_url = await ensure_public_url(brand_asset_image_url, "brand asset")
+            if converted_brand_url:
+                control_images.append(converted_brand_url)
+            else:
+                logger.warning("⚠️  Brand asset URL could not be converted, skipping")
+        
+        if character_asset_image_url:
+            converted_character_url = await ensure_public_url(character_asset_image_url, "character asset")
+            if converted_character_url:
+                control_images.append(converted_character_url)
+            else:
+                logger.warning("⚠️  Character asset URL could not be converted, skipping")
+        
+        if background_asset_image_url:
+            converted_background_url = await ensure_public_url(background_asset_image_url, "background asset")
+            if converted_background_url:
+                control_images.append(converted_background_url)
+            else:
+                logger.warning("⚠️  Background asset URL could not be converted, skipping")
+        
+        # Log control image URLs
+        logger.info("🖼️  CONTROL IMAGE URLS BEING SENT:")
+        if control_images:
+            for i, img_url in enumerate(control_images, 1):
+                # Truncate base64 data URIs in logs for readability
+                display_url = img_url[:100] + "..." if len(img_url) > 100 and img_url.startswith("data:") else img_url
+                logger.info(f"  Image {i}: {display_url}")
+        else:
+            logger.info("  (No control images)")
+        
+        # Prepare input for nano-banana-pro according to API documentation
+        # API expects: prompt, resolution, image_input (array), aspect_ratio, output_format, safety_filter_level
+        # Resolution options: "1K", "2K", "4K" (we're using 1920x1080 which is 1K)
+        # Aspect ratio: "16:9" for landscape (1920x1080)
+        input_params = {
+            "prompt": full_prompt,
+            "resolution": "1K",  # 1920x1080 = 1K resolution
+            "aspect_ratio": "16:9",  # Landscape orientation
+            "image_input": control_images,  # Array of image URLs for control/reference images
+            "output_format": "png",
+            "safety_filter_level": "block_only_high"  # Optional safety filter
+        }
+        
+        logger.info(f"  → Using 'image_input' parameter with {len(control_images)} image(s)")
+        
+        # Log all input parameters
+        logger.info("📦 ALL PARAMETERS BEING SENT TO google/nano-banana-pro:")
+        logger.info("-"*80)
+        logger.info(f"  Model: google/nano-banana-pro")
+        logger.info(f"  Prompt: {full_prompt}")
+        logger.info(f"  Resolution: {input_params['resolution']}")
+        logger.info(f"  Aspect Ratio: {input_params['aspect_ratio']}")
+        logger.info(f"  Output Format: {input_params['output_format']}")
+        logger.info(f"  Safety Filter Level: {input_params['safety_filter_level']}")
+        if input_params['image_input']:
+            logger.info(f"  Image Input: {len(input_params['image_input'])} image(s)")
+            for i, img in enumerate(input_params['image_input'], 1):
+                logger.info(f"    [{i}] {img}")
+        else:
+            logger.info(f"  Image Input: (empty array)")
+        logger.info("-"*80)
+        
+        # Log the COMPLETE JSON object being sent to the API
+        import json
+        logger.info("\n" + "="*80)
+        logger.info("🔍 COMPLETE JSON OBJECT BEING SENT TO google/nano-banana-pro:")
+        logger.info("="*80)
+        try:
+            json_payload = json.dumps(input_params, indent=2, ensure_ascii=False)
+            logger.info(json_payload)
+        except Exception as e:
+            logger.error(f"Failed to serialize JSON: {e}")
+            logger.info(f"Input params dict: {input_params}")
+        logger.info("="*80 + "\n")
+        
+        logger.info("🚀 Calling Replicate API with model: google/nano-banana-pro")
+        start_time = asyncio.get_event_loop().time()
+        
+        # Retry logic for transient Replicate API errors
+        max_retries = 3
+        base_delay = 2.0
+        output = None
+        
+        for attempt in range(max_retries):
+            try:
+                # Call nano-banana-pro
+                output = await asyncio.to_thread(
+                    self.client.run,
+                    "google/nano-banana-pro",
+                    input=input_params
+                )
+                
+                elapsed_time = asyncio.get_event_loop().time() - start_time
+                logger.info(f"⏱️  API call completed in {elapsed_time:.2f}s")
+                
+                logger.info("📤 RAW OUTPUT FROM google/nano-banana-pro:")
+                logger.info(f"  Type: {type(output)}")
+                logger.info(f"  Value: {output}")
+                
+                # Check if output indicates an error
+                if output is None:
+                    raise Exception("No output from nano-banana-pro")
+                
+                # Check for error in output (Replicate sometimes returns error dicts)
+                if isinstance(output, dict):
+                    if "error" in output:
+                        error_msg = output.get("error", "Unknown error")
+                        raise Exception(f"Replicate API error: {error_msg}")
+                    if "status" in output and output.get("status") == "failed":
+                        error_msg = output.get("error", "Generation failed")
+                        raise Exception(f"Replicate generation failed: {error_msg}")
+                
+                # Extract image URL from output
+                if isinstance(output, list) and len(output) > 0:
+                    image_url = str(output[0])
+                elif isinstance(output, str):
+                    image_url = output
+                elif hasattr(output, 'url'):
+                    image_url = output.url
+                elif hasattr(output, '__str__'):
+                    image_url = str(output)
+                else:
+                    raise Exception(f"Unexpected output format from nano-banana-pro: {type(output)}")
+                
+                logger.info("✅ RESULTING IMAGE URL FROM google/nano-banana-pro:")
+                logger.info(f"  {image_url}")
+                logger.info("="*80)
+                
+                return image_url
+                
+            except Exception as e:
+                error_msg = str(e).lower()
+                elapsed_time = asyncio.get_event_loop().time() - start_time
+                
+                # Check if this is a retryable error
+                is_retryable = (
+                    "e6716" in error_msg or  # Director error - often transient
+                    "director" in error_msg or
+                    "unexpected error" in error_msg or
+                    "timeout" in error_msg or
+                    "rate limit" in error_msg or
+                    "429" in error_msg or
+                    "500" in error_msg or
+                    "502" in error_msg or
+                    "503" in error_msg
+                )
+                
+                if attempt < max_retries - 1 and is_retryable:
+                    delay = base_delay * (2 ** attempt)  # Exponential backoff: 2s, 4s, 8s
+                    logger.warning(f"⚠️  Attempt {attempt + 1}/{max_retries} failed: {str(e)}")
+                    logger.warning(f"   Retrying in {delay}s...")
+                    await asyncio.sleep(delay)
+                    continue
+                else:
+                    # Last attempt or non-retryable error - log and raise
+                    logger.error(f"❌ ERROR calling nano-banana-pro after {elapsed_time:.2f}s:")
+                    logger.error(f"  Error type: {type(e).__name__}")
+                    logger.error(f"  Error message: {str(e)}")
+                    logger.error(f"  Input params: {json.dumps(input_params, indent=2)}")
+                    logger.error("="*80)
+                    raise
+        
+        # This should never be reached, but added for completeness
+        raise Exception("Failed to generate image after all retry attempts")
+
 
 class ReplicateVideoService:
     """Service for generating videos using Replicate API img2vid models."""
 
     # Production model: ByteDance Seedance 1 Pro Fast (high quality, supports prompts)
     # Fast, high-quality video generation with prompt support for scene descriptions
-    PRODUCTION_VIDEO_MODEL = "bytedance/seedance-1-pro-fast"
+    PRODUCTION_VIDEO_MODEL = "google/veo-3.1"
 
     # Development model: Same as production (Seedance supports prompts)
     # Using Seedance in both dev and prod because it supports prompts
     # This ensures scene descriptions are actually used in video generation
-    DEVELOPMENT_VIDEO_MODEL = "bytedance/seedance-1-pro-fast"
+    DEVELOPMENT_VIDEO_MODEL = "google/veo-3.1"
 
     def __init__(self):
         """Initialize the Replicate video service with API token."""
@@ -941,7 +1252,7 @@ class ReplicateVideoService:
             
             # Seedance supports image-to-video with prompts
             # Required parameters: image, prompt
-            # Optional parameters: duration (3-10s), resolution (480p/720p/1080p), aspect_ratio (9:16 for vertical)
+            # Optional parameters: duration (3-10s), resolution (480p/720p/1080p), aspect_ratio (16:9 for landscape)
             # Clamp duration to valid range (3-10 seconds)
             clamped_duration = min(max(int(duration_seconds), 3), 10)
             
@@ -956,7 +1267,7 @@ class ReplicateVideoService:
                 "prompt": video_prompt,  # Use scene description
                 "duration": clamped_duration,  # Seedance supports 3-10 seconds
                 "resolution": resolution,  # 480p, 720p, or 1080p
-                "aspect_ratio": "9:16"  # Vertical format for social media
+                "aspect_ratio": "16:9"  # Landscape format (1080p)
             }
         elif "minimax" in model_id.lower():
             # MiniMax Video-01-Director parameters
@@ -987,8 +1298,8 @@ class ReplicateVideoService:
                 "num_inference_steps": num_inference_steps,
                 "guidance_scale": 17.5,
                 "fps": fps,
-                "width": 576,  # Zeroscope default width
-                "height": 1024  # 9:16 aspect ratio
+                "width": 1920,  # 16:9 aspect ratio (1080p)
+                "height": 1080  # 16:9 aspect ratio (1080p)
             }
 
         try:

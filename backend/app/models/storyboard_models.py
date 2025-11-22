@@ -45,6 +45,11 @@ class StoryboardScene(BaseModel):
     use_product_composite: bool = Field(default=False, description="Whether to composite product into scene")
     product_id: Optional[str] = Field(default=None, description="Product ID to composite (if use_product_composite=True)")
 
+    # Asset references (from project-level assets)
+    brand_asset_id: Optional[str] = Field(default=None, description="Brand asset ID from project (first asset if multiple)")
+    character_asset_id: Optional[str] = Field(default=None, description="Character asset ID from project (first asset if multiple)")
+    background_asset_id: Optional[str] = Field(default=None, description="Background asset ID from project")
+
     # Generation tracking
     generation_status: SceneGenerationStatus = Field(default_factory=SceneGenerationStatus)
     error_message: Optional[str] = Field(default=None, description="Error message if generation fails")
@@ -75,6 +80,7 @@ class Storyboard(BaseModel):
     # Identity
     storyboard_id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="Unique storyboard ID (UUID)")
     user_id: str = Field(..., description="Clerk user ID who owns this storyboard")
+    project_id: Optional[str] = Field(default=None, description="Project ID this storyboard belongs to (for asset access)")
 
     # Content
     creative_brief: str = Field(..., description="Original creative brief text")
@@ -113,6 +119,9 @@ class StoryboardInitializeRequest(BaseModel):
     """Request to initialize a new storyboard with generated scene texts."""
     creative_brief: CreativeBriefInput = Field(..., description="Creative brief data")
     selected_mood: dict = Field(..., description="Selected mood data")
+    project_id: Optional[str] = Field(default=None, description="Project ID for asset access")
+    brand_asset_ids: Optional[List[str]] = Field(default=None, description="Brand asset IDs from project (uses first if multiple)")
+    character_asset_ids: Optional[List[str]] = Field(default=None, description="Character asset IDs from project (uses first if multiple)")
 
 
 class StoryboardInitializeResponse(BaseModel):

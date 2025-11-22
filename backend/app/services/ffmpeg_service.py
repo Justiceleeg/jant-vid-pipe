@@ -14,8 +14,8 @@ class FFmpegCompositionService:
     """Service for composing final videos using FFmpeg."""
 
     # Target specifications (defaults, will be auto-detected from input videos)
-    TARGET_WIDTH = 1080  # 9:16 aspect ratio (default)
-    TARGET_HEIGHT = 1920
+    TARGET_WIDTH = 1920  # 16:9 aspect ratio (1080p landscape)
+    TARGET_HEIGHT = 1080
     TARGET_FPS = 30
     TARGET_DURATION = 30  # seconds
     TARGET_MAX_SIZE_MB = 50

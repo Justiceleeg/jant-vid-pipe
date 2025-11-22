@@ -44,6 +44,11 @@ export interface StoryboardScene {
   // Product compositing (for product mode)
   use_product_composite?: boolean;
   product_id?: string | null;
+  
+  // Asset references (from project-level assets)
+  brand_asset_id?: string | null;
+  character_asset_id?: string | null;
+  background_asset_id?: string | null;
 }
 
 /**
@@ -51,6 +56,7 @@ export interface StoryboardScene {
  */
 export interface Storyboard {
   storyboard_id: string; // UUID
+  project_id?: string | null; // Project ID for asset access
   session_id: string; // From auth layer
   user_id: string; // From auth layer
   created_at: string; // ISO timestamp
@@ -66,6 +72,9 @@ export interface Storyboard {
 export interface StoryboardInitializeRequest {
   creative_brief: CreativeBriefInput;
   selected_mood: Mood;
+  project_id?: string | null; // Project ID for asset access
+  brand_asset_ids?: string[] | null; // Brand asset IDs from project
+  character_asset_ids?: string[] | null; // Character asset IDs from project
 }
 
 /**

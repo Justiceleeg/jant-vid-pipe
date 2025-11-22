@@ -4,6 +4,7 @@ import { useEffect, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { StoryboardCarousel } from '@/components/storyboard';
 import { useProjectScenes } from '@/hooks/useProjectScenes';
+import { useProject } from '@/hooks/useProject';
 import { useAppStore } from '@/store/appStore';
 import { ToastProvider, useToast } from '@/components/ui/Toast';
 import { ErrorAlert } from '@/components/ui/ErrorAlert';
@@ -24,10 +25,11 @@ function ScenesPageContent() {
   // App-level state
   const { setCurrentStep, setStoryboardCompleted } = useAppStore();
 
+  // Load project data with real-time updates
+  const { project, isLoading: isProjectLoading, error: projectError } = useProject(projectId);
+
   // Load scenes with real-time updates via project API
-  // Note: useProjectScenes now also returns the project, so we don't need a separate useProject call
   const {
-    project,
     scenes,
     isLoading,
     isSaving,
@@ -44,23 +46,13 @@ function ScenesPageContent() {
     setError,
   } = useProjectScenes(projectId);
 
-  // Debug logging
-  useEffect(() => {
-    console.log('[ScenesPage] Scenes updated:', scenes);
-    console.log('[ScenesPage] Scenes count:', scenes.length);
-    console.log('[ScenesPage] isLoading:', isLoading);
-    console.log('[ScenesPage] error:', error);
-    console.log('[ScenesPage] project exists:', !!project);
-    console.log('[ScenesPage] project value:', project);
-  }, [scenes, isLoading, error, project]);
-
   // Handle project loading errors
   useEffect(() => {
-    if (error && !project && !isLoading) {
-      console.error('[ScenesPage] Failed to load project:', error);
-      // Don't redirect immediately - give it time to load
+    if (projectError) {
+      console.error('[ScenesPage] Failed to load project:', projectError);
+      router.push('/projects');
     }
-  }, [error, project, isLoading]);
+  }, [projectError, router]);
 
   // Handle operations with toast feedback
   const handleApproveText = async (sceneId: string) => {
@@ -215,16 +207,12 @@ function ScenesPageContent() {
     router.push(`/project/${projectId}/final`);
   };
 
-  // Convert project scenes to storyboard format for carousel component using useMemo
-  // MUST be declared before any early returns that use these values
+  // Convert project scenes to storyboard format for carousel component
+  // Must be declared before early returns
   const storyboardForCarousel = useMemo(() => {
-    console.log('[ScenesPage useMemo] storyboardForCarousel recalculating - project:', !!project, 'scenes:', scenes.length);
-    if (!project) {
-      console.log('[ScenesPage useMemo] No project, returning null');
-      return null;
-    }
+    if (!project) return null;
     
-    const result = {
+    return {
       storyboard_id: project.id,
       title: project.storyboard?.title || project.name,
       scene_order: scenes.map(s => s.id),
@@ -232,24 +220,18 @@ function ScenesPageContent() {
       updated_at: project.updatedAt,
       session_id: project.userId, // Legacy field
       user_id: project.userId,
-      creative_brief: project.storyboard?.creativeBrief || {},
-      selected_mood: project.storyboard?.selectedMood || {},
+      creative_brief: project.storyboard?.creativeBrief as any || {},
+      selected_mood: project.storyboard?.selectedMood as any || {},
     };
-    console.log('[ScenesPage useMemo] storyboardForCarousel created:', result);
-    return result;
   }, [project, scenes]);
 
-  // Convert Scene objects to StoryboardScene format using useMemo
+  // Convert Scene objects to StoryboardScene format
   const storyboardScenes = useMemo(() => {
-    console.log('[ScenesPage useMemo] storyboardScenes recalculating - project:', !!project, 'scenes:', scenes.length);
-    
     if (!project || !scenes || scenes.length === 0) {
-      console.log('[ScenesPage useMemo] Cannot create storyboardScenes - project:', !!project, 'scenes:', scenes?.length || 0);
       return [];
     }
 
-    console.log('[ScenesPage useMemo] Starting conversion of', scenes.length, 'scenes');
-    const converted = scenes.map(scene => ({
+    return scenes.map(scene => ({
       id: scene.id,
       storyboard_id: project.id,
       state: (scene.assets?.videoPath ? 'video' : scene.assets?.thumbnailPath ? 'image' : 'text') as 'text' | 'image' | 'video',
@@ -260,10 +242,10 @@ function ScenesPageContent() {
       video_url: scene.assets?.videoPath || null,
       video_duration: scene.durationSeconds || 5,
       generation_status: {
-        image: scene.activeJob?.type === 'video' && scene.activeJob?.status === 'processing' ? 'generating' : 
-               scene.assets?.thumbnailPath ? 'complete' : 'pending',
-        video: scene.activeJob?.type === 'video' && scene.activeJob?.status === 'processing' ? 'generating' :
-               scene.assets?.videoPath ? 'complete' : 'pending',
+        image: (scene.activeJob?.type === 'video' && scene.activeJob?.status === 'processing' ? 'generating' : 
+               scene.assets?.thumbnailPath ? 'complete' : 'pending') as any,
+        video: (scene.activeJob?.type === 'video' && scene.activeJob?.status === 'processing' ? 'generating' :
+               scene.assets?.videoPath ? 'complete' : 'pending') as any,
       },
       error_message: scene.activeJob?.errorMessage || null,
       created_at: project.createdAt, // Scene doesn't have its own timestamps
@@ -271,20 +253,10 @@ function ScenesPageContent() {
       use_product_composite: false,
       product_id: null,
     }));
-
-    console.log('[ScenesPage] storyboardScenes created:', converted);
-    console.log('[ScenesPage] storyboardScenes count:', converted.length);
-    return converted;
   }, [project, scenes]);
 
-  // Debug logging
-  useEffect(() => {
-    console.log('[ScenesPage] storyboardForCarousel:', storyboardForCarousel);
-    console.log('[ScenesPage] storyboardScenes final:', storyboardScenes);
-  }, [storyboardForCarousel, storyboardScenes]);
-
   // Loading state
-  if (isLoading) {
+  if (isLoading || isProjectLoading) {
     return (
       <div className="flex min-h-[calc(100vh-80px)] sm:min-h-[calc(100vh-100px)] items-center justify-center p-3 sm:p-4 md:p-6 lg:p-8 animate-fadeIn">
         <div className="w-full max-w-7xl space-y-3 sm:space-y-4 md:space-y-6 pt-4 sm:pt-6 md:pt-8">
@@ -334,7 +306,7 @@ function ScenesPageContent() {
     );
   }
 
-  // No scenes state - check storyboardScenes instead of scenes
+  // No scenes state
   if (!project || !storyboardForCarousel || storyboardScenes.length === 0) {
     return (
       <div className="flex min-h-[calc(100vh-80px)] sm:min-h-[calc(100vh-100px)] items-center justify-center p-3 sm:p-4 md:p-6 lg:p-8 animate-fadeIn">

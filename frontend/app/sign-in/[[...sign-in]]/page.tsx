@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useSignIn, useAuth } from "@clerk/nextjs";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { signInSchema, type SignInFormData } from "@/lib/auth/validation";
@@ -17,13 +17,14 @@ import { cn } from "@/lib/utils";
 
 /**
  * Custom sign-in page with email and password authentication
- * Handles callback URL parameter to redirect users back to their intended destination
+ * Uses Clerk's built-in redirect handling via setActive() redirectUrl parameter
+ * to eliminate race conditions and simplify the auth flow
  */
 export default function SignInPage() {
   const { isLoaded, signIn, setActive } = useSignIn();
   const { userId } = useAuth();
-  const router = useRouter();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [clerkError, setClerkError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -39,14 +40,18 @@ export default function SignInPage() {
     resolver: zodResolver(signInSchema),
   });
 
-  // Redirect if already authenticated
+  // Redirect authenticated users immediately - check both isLoaded and userId
   useEffect(() => {
     if (isLoaded && userId) {
-      router.replace(callbackUrl);
+      // Small delay to ensure session is fully established
+      const timer = setTimeout(() => {
+        router.replace(callbackUrl);
+      }, 100);
+      return () => clearTimeout(timer);
     }
   }, [isLoaded, userId, callbackUrl, router]);
 
-  // Don't render form if already authenticated (redirecting)
+  // Don't render form if already authenticated
   if (isLoaded && userId) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -58,6 +63,12 @@ export default function SignInPage() {
   const onSubmit = async (data: SignInFormData) => {
     if (!isLoaded) return;
 
+    // Double-check: if user is already authenticated, redirect immediately
+    if (userId) {
+      router.replace(callbackUrl);
+      return;
+    }
+
     setIsLoading(true);
     setClerkError(null);
 
@@ -68,17 +79,44 @@ export default function SignInPage() {
       });
 
       if (result.status === "complete") {
-        await setActive({ session: result.createdSessionId });
-        router.push(callbackUrl);
+        // Check if session already exists before trying to set active
+        // This prevents "Session already exists" errors
+        try {
+        await setActive({ 
+          session: result.createdSessionId,
+          redirectUrl: callbackUrl 
+        });
+        } catch (setActiveError: any) {
+          // If setActive fails because session already exists, just redirect
+          if (setActiveError.errors?.[0]?.message?.toLowerCase().includes("session") && 
+              setActiveError.errors?.[0]?.message?.toLowerCase().includes("already")) {
+            // Session already active, just redirect
+            router.replace(callbackUrl);
+            return;
+          }
+          throw setActiveError;
+        }
+        // No need for manual router.push() - Clerk handles redirect via redirectUrl
       } else {
         // Handle additional verification steps if needed
         setClerkError("Sign-in incomplete. Please try again.");
+        setIsLoading(false);
       }
     } catch (err: any) {
-      setClerkError(err.errors?.[0]?.message || "An error occurred during sign-in");
-    } finally {
+      // Handle errors - check if it's a "session already exists" error
+      const errorMessage = err.errors?.[0]?.message || err.message || "An error occurred during sign-in";
+      
+      // If session already exists, redirect instead of showing error
+      if (errorMessage.toLowerCase().includes("session") && 
+          errorMessage.toLowerCase().includes("already")) {
+        router.replace(callbackUrl);
+        return;
+      }
+      
+      setClerkError(errorMessage);
       setIsLoading(false);
     }
+    // Note: Don't set isLoading to false if setActive succeeds - Clerk will redirect
   };
 
   return (
@@ -128,7 +166,7 @@ export default function SignInPage() {
               type="submit"
               className="w-full"
               isLoading={isLoading}
-              disabled={!isLoaded}
+              disabled={!isLoaded || !!userId}
             >
               Sign In
             </AuthButton>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useSignUp, useAuth } from "@clerk/nextjs";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { signUpSchema, type SignUpFormData } from "@/lib/auth/validation";
@@ -17,14 +17,15 @@ import { cn } from "@/lib/utils";
 
 /**
  * Custom sign-up page with name, email, and password registration
- * Handles callback URL parameter to redirect users back to their intended destination
+ * Uses Clerk's built-in redirect handling via setActive() redirectUrl parameter
+ * to eliminate race conditions and simplify the auth flow
  * Basic auth flow - no email verification required
  */
 export default function SignUpPage() {
   const { isLoaded, signUp, setActive } = useSignUp();
   const { userId } = useAuth();
-  const router = useRouter();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [clerkError, setClerkError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -40,14 +41,14 @@ export default function SignUpPage() {
     resolver: zodResolver(signUpSchema),
   });
 
-  // Redirect if already authenticated
+  // Redirect authenticated users immediately
   useEffect(() => {
     if (isLoaded && userId) {
       router.replace(callbackUrl);
     }
   }, [isLoaded, userId, callbackUrl, router]);
 
-  // Don't render form if already authenticated (redirecting)
+  // Don't render form if already authenticated
   if (isLoaded && userId) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -73,17 +74,25 @@ export default function SignUpPage() {
       // Since we're using basic auth (no email verification),
       // we can immediately set the session as active
       if (result.status === "complete") {
-        await setActive({ session: result.createdSessionId });
-        router.push(callbackUrl);
+        // Use setActive with redirectUrl to let Clerk handle redirect automatically
+        // This eliminates race conditions by ensuring session is established before redirect
+        await setActive({ 
+          session: result.createdSessionId,
+          redirectUrl: callbackUrl 
+        });
+        // No need for manual router.push() - Clerk handles redirect via redirectUrl
       } else {
         // Handle additional verification steps if needed
         setClerkError("Sign-up incomplete. Please try again.");
+        setIsLoading(false);
       }
     } catch (err: any) {
-      setClerkError(err.errors?.[0]?.message || "An error occurred during sign-up");
-    } finally {
+      // Handle setActive errors specifically
+      const errorMessage = err.errors?.[0]?.message || err.message || "An error occurred during sign-up";
+      setClerkError(errorMessage);
       setIsLoading(false);
     }
+    // Note: Don't set isLoading to false if setActive succeeds - Clerk will redirect
   };
 
   return (

@@ -22,11 +22,18 @@ from app.services.metrics_service import get_composite_metrics
 from app.services.firebase_storage_service import get_storage_service
 from app.middleware.clerk_auth import get_current_user_id, get_optional_user_id
 from app.firestore_database import db
+from app.services.brand_service import get_brand_service
+from app.services.character_service import get_character_service
+
 from app.config import settings
 import json
 import asyncio
 from datetime import datetime
 import uuid
+import replicate
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/api/storyboards",
@@ -426,6 +433,328 @@ async def disable_product_composite(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to disable product composite: {str(e)}"
+        )
+
+
+# ============================================================================
+# Asset Toggle Endpoints
+# ============================================================================
+
+class EnableBrandAssetRequest(BaseModel):
+    """Request to enable brand asset for a scene."""
+    brand_asset_id: str
+
+
+class EnableCharacterAssetRequest(BaseModel):
+    """Request to enable character asset for a scene."""
+    character_asset_id: str
+
+
+class EnableBackgroundAssetRequest(BaseModel):
+    """Request to enable background asset for a scene."""
+    background_asset_id: str
+
+
+@router.post("/{storyboard_id}/scenes/{scene_id}/brand-asset")
+async def enable_brand_asset(
+    storyboard_id: str,
+    scene_id: str,
+    request: EnableBrandAssetRequest
+):
+    """
+    Enable brand asset for a scene.
+    
+    This marks the scene to include the brand asset in image generation.
+    If the scene already has an image, it will need to be regenerated.
+    """
+    try:
+        # Validate brand asset exists
+        brand_service = get_brand_service()
+        brand_asset = brand_service.get_brand_asset(request.brand_asset_id)
+        
+        if not brand_asset:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Brand asset {request.brand_asset_id} not found"
+            )
+        
+        # Get scene
+        scene = db.get_scene(scene_id)
+        if not scene:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Scene {scene_id} not found"
+            )
+        
+        # Update scene
+        scene.brand_asset_id = request.brand_asset_id
+        
+        # If scene already has an image, mark for regeneration
+        if scene.image_url:
+            scene.generation_status.image = "pending"
+            scene.image_url = None
+        
+        # Save scene
+        db.update_scene(scene_id, scene)
+        
+        return {
+            "success": True,
+            "scene": scene,
+            "message": "Brand asset enabled"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to enable brand asset: {str(e)}"
+        )
+
+
+@router.delete("/{storyboard_id}/scenes/{scene_id}/brand-asset")
+async def disable_brand_asset(
+    storyboard_id: str,
+    scene_id: str
+):
+    """
+    Disable brand asset for a scene.
+    
+    Removes brand asset from the scene. If the scene has an image with brand asset,
+    it will need to be regenerated.
+    """
+    try:
+        # Get scene
+        scene = db.get_scene(scene_id)
+        if not scene:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Scene {scene_id} not found"
+            )
+        
+        # Update scene
+        scene.brand_asset_id = None
+        
+        # If scene has an image, mark for regeneration
+        if scene.image_url:
+            scene.generation_status.image = "pending"
+            scene.image_url = None
+        
+        # Save scene
+        db.update_scene(scene_id, scene)
+        
+        return {
+            "success": True,
+            "scene": scene,
+            "message": "Brand asset disabled"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to disable brand asset: {str(e)}"
+        )
+
+
+@router.post("/{storyboard_id}/scenes/{scene_id}/character-asset")
+async def enable_character_asset(
+    storyboard_id: str,
+    scene_id: str,
+    request: EnableCharacterAssetRequest
+):
+    """
+    Enable character asset for a scene.
+    
+    This marks the scene to include the character asset in image generation.
+    If the scene already has an image, it will need to be regenerated.
+    """
+    try:
+        # Validate character asset exists
+        character_service = get_character_service()
+        character_asset = character_service.get_character_asset(request.character_asset_id)
+        
+        if not character_asset:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Character asset {request.character_asset_id} not found"
+            )
+        
+        # Get scene
+        scene = db.get_scene(scene_id)
+        if not scene:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Scene {scene_id} not found"
+            )
+        
+        # Update scene
+        scene.character_asset_id = request.character_asset_id
+        
+        # If scene already has an image, mark for regeneration
+        if scene.image_url:
+            scene.generation_status.image = "pending"
+            scene.image_url = None
+        
+        # Save scene
+        db.update_scene(scene_id, scene)
+        
+        return {
+            "success": True,
+            "scene": scene,
+            "message": "Character asset enabled"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to enable character asset: {str(e)}"
+        )
+
+
+@router.post("/{storyboard_id}/scenes/{scene_id}/background-asset")
+async def enable_background_asset(
+    storyboard_id: str,
+    scene_id: str,
+    request: EnableBackgroundAssetRequest
+):
+    """
+    Enable background asset for a scene.
+    
+    This marks the scene to include the background asset in image generation.
+    If the scene already has an image, it will need to be regenerated.
+    """
+    try:
+        # Validate background asset exists
+        from ..services.background_service import get_background_service
+        background_service = get_background_service()
+        background_asset = background_service.get_asset(request.background_asset_id)
+        
+        if not background_asset:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Background asset {request.background_asset_id} not found"
+            )
+        
+        # Get scene
+        scene = db.get_scene(scene_id)
+        if not scene:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Scene {scene_id} not found"
+            )
+        
+        # Update scene
+        scene.background_asset_id = request.background_asset_id
+        
+        # If scene already has an image, mark for regeneration
+        if scene.image_url:
+            scene.generation_status.image = "pending"
+            scene.image_url = None
+        
+        # Save scene
+        db.update_scene(scene_id, scene)
+        
+        return {
+            "success": True,
+            "scene": scene,
+            "message": "Background asset enabled"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to enable background asset: {str(e)}"
+        )
+
+
+@router.delete("/{storyboard_id}/scenes/{scene_id}/background-asset")
+async def disable_background_asset(
+    storyboard_id: str,
+    scene_id: str
+):
+    """
+    Disable background asset for a scene.
+    
+    Removes background asset from the scene. If the scene has an image with background asset,
+    it will need to be regenerated.
+    """
+    try:
+        # Get scene
+        scene = db.get_scene(scene_id)
+        if not scene:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Scene {scene_id} not found"
+            )
+        
+        # Update scene
+        scene.background_asset_id = None
+        
+        # If scene has an image, mark for regeneration
+        if scene.image_url:
+            scene.generation_status.image = "pending"
+            scene.image_url = None
+        
+        # Save scene
+        db.update_scene(scene_id, scene)
+        
+        return {
+            "success": True,
+            "scene": scene,
+            "message": "Background asset disabled"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to disable background asset: {str(e)}"
+        )
+    """
+    Disable character asset for a scene.
+    
+    Removes character asset from the scene. If the scene has an image with character asset,
+    it will need to be regenerated.
+    """
+    try:
+        # Get scene
+        scene = db.get_scene(scene_id)
+        if not scene:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Scene {scene_id} not found"
+            )
+        
+        # Update scene
+        scene.character_asset_id = None
+        
+        # If scene has an image, mark for regeneration
+        if scene.image_url:
+            scene.generation_status.image = "pending"
+            scene.image_url = None
+        
+        # Save scene
+        db.update_scene(scene_id, scene)
+        
+        return {
+            "success": True,
+            "scene": scene,
+            "message": "Character asset disabled"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to disable character asset: {str(e)}"
         )
 
 

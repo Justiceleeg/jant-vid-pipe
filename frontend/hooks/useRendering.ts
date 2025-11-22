@@ -32,7 +32,7 @@ export const useRendering = () => {
         current_batch: 0,
         total_batches: 15,
         sample_frames: [],
-        error: null,
+        error: undefined,
       });
 
       const response = await fetch(`${API_URL}/api/nerf/render`, {
@@ -102,7 +102,7 @@ export const useRendering = () => {
         total_batches: data.total_batches,
         estimated_time_remaining: data.estimated_time_remaining,
         sample_frames: [],
-        error: null,
+        error: undefined,
       });
 
       setIsPolling(true);

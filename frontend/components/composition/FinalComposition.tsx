@@ -19,7 +19,6 @@ export function FinalComposition({ onBack }: FinalCompositionProps) {
   const {
     audioUrl,
     finalVideo,
-    compositionProgress,
     creativeBrief,
     selectedMoodId,
     moods,
@@ -121,7 +120,7 @@ export function FinalComposition({ onBack }: FinalCompositionProps) {
       const request: CompositionRequest = {
         clips: clips,  // Use the clips we prepared from storyboard scenes
         audio_url: finalAudioUrl || undefined,
-        include_crossfade: true,
+        include_crossfade: false,
         optimize_size: true,
         target_size_mb: 50,
       };
@@ -143,10 +142,10 @@ export function FinalComposition({ onBack }: FinalCompositionProps) {
 
   // Update phase progress based on composition progress
   useEffect(() => {
-    if (currentPhase === 'composition' && compositionProgress > 0) {
-      setPhaseProgress((prev) => ({ ...prev, composition: compositionProgress }));
+    if (currentPhase === 'composition' && jobStatus?.progress_percent) {
+      setPhaseProgress((prev) => ({ ...prev, composition: jobStatus.progress_percent }));
     }
-  }, [compositionProgress, currentPhase]);
+  }, [jobStatus?.progress_percent, currentPhase]);
 
   // Auto-start composition when component mounts (if not already started)
   useEffect(() => {
@@ -288,9 +287,9 @@ export function FinalComposition({ onBack }: FinalCompositionProps) {
 
             {/* Video Preview Player */}
             {jobStatus?.video_url && (
-              <div className="max-w-md mx-auto space-y-3">
+              <div className="max-w-4xl mx-auto space-y-3">
                 <h4 className="text-lg font-semibold text-center">Preview</h4>
-                <div className="relative bg-black rounded-lg overflow-hidden shadow-xl aspect-[9/16]">
+                <div className="relative bg-black rounded-lg overflow-hidden shadow-xl aspect-video">
                   <video
                     controls
                     autoPlay
@@ -324,7 +323,7 @@ export function FinalComposition({ onBack }: FinalCompositionProps) {
                 <div className="text-xs text-muted-foreground">Scenes</div>
               </div>
               <div className="text-center p-3 bg-zinc-50 dark:bg-zinc-800 rounded-lg">
-                <div className="text-2xl font-bold">9:16</div>
+                <div className="text-2xl font-bold">16:9</div>
                 <div className="text-xs text-muted-foreground">Aspect Ratio</div>
               </div>
             </div>
@@ -394,7 +393,7 @@ export function FinalComposition({ onBack }: FinalCompositionProps) {
                         video_url: scene.video_url!,
                         duration: scene.video_duration,
                       })),
-                    include_crossfade: true,
+                    include_crossfade: false,
                     optimize_size: true,
                     target_size_mb: 50,
                   };

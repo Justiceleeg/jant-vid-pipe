@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     REPLICATE_API_TOKEN: str = ""
     REPLICATE_API_KEY: str = ""  # Alias for REPLICATE_API_TOKEN (some users might use this)
     OPENAI_API_KEY: str = ""
+    IMGBB_API_KEY: str = ""  # ImgBB API key for public image URLs (get free at https://api.imgbb.com/)
     
     # Clerk Authentication
     CLERK_SECRET_KEY: str = ""
@@ -33,8 +34,8 @@ class Settings(BaseSettings):
     
     # Image Generation Configuration
     IMAGES_PER_MOOD: int = 0  # 0 = auto (2 for dev, 4 for prod)
-    IMAGE_WIDTH: int = 0  # 0 = auto (640 for dev, 1080 for prod)
-    IMAGE_HEIGHT: int = 0  # 0 = auto (1136 for dev, 1920 for prod)
+    IMAGE_WIDTH: int = 0  # 0 = auto (1280 for dev, 1920 for prod - 16:9 aspect ratio)
+    IMAGE_HEIGHT: int = 0  # 0 = auto (720 for dev, 1080 for prod - 16:9 aspect ratio)
     
     # CORS Configuration (comma-separated string)
     CORS_ORIGINS: str = "http://localhost:3000"
