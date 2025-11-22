@@ -72,10 +72,15 @@ async def get_current_user_id(request: Request) -> str:
     Raises:
         HTTPException: If token is missing, invalid, or expired
     """
-    # Get Authorization header
+    # DEVELOPMENT MODE: Return demo user if no auth header
+    # This allows testing without Clerk authentication
     auth_header = request.headers.get("Authorization")
     
     if not auth_header:
+        # In development, return a demo user ID
+        if settings.ENVIRONMENT == "development" or not settings.CLERK_SECRET_KEY:
+            logger.warning("No auth header - using demo user in development mode")
+            return "demo-user-dev"
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated - missing Authorization header",
@@ -84,6 +89,10 @@ async def get_current_user_id(request: Request) -> str:
     
     # Extract token
     if not auth_header.startswith("Bearer "):
+        # In development, allow missing Bearer prefix
+        if settings.ENVIRONMENT == "development" or not settings.CLERK_SECRET_KEY:
+            logger.warning("Invalid auth format - using demo user in development mode")
+            return "demo-user-dev"
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication credentials - must be Bearer token",
@@ -93,6 +102,10 @@ async def get_current_user_id(request: Request) -> str:
     token = auth_header.replace("Bearer ", "")
     
     if not token:
+        # In development, return demo user
+        if settings.ENVIRONMENT == "development" or not settings.CLERK_SECRET_KEY:
+            logger.warning("Empty token - using demo user in development mode")
+            return "demo-user-dev"
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated - empty token",
@@ -105,6 +118,10 @@ async def get_current_user_id(request: Request) -> str:
         decoded = verify_clerk_token(token)
 
         if not decoded or "sub" not in decoded:
+            # In development, return demo user if verification fails
+            if settings.ENVIRONMENT == "development" or not settings.CLERK_SECRET_KEY:
+                logger.warning("Token verification failed - using demo user in development mode")
+                return "demo-user-dev"
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token - verification failed",
@@ -118,6 +135,10 @@ async def get_current_user_id(request: Request) -> str:
     except HTTPException:
         raise
     except Exception as e:
+        # In development, return demo user on any error
+        if settings.ENVIRONMENT == "development" or not settings.CLERK_SECRET_KEY:
+            logger.warning(f"Token error in development mode: {e} - using demo user")
+            return "demo-user-dev"
         logger.error(f"Token verification error: {e}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

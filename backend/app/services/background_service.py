@@ -257,9 +257,23 @@ Return ONLY valid JSON in this format: {{"prompts": ["prompt 1", "prompt 2", ...
         if not self.replicate_service:
             raise ValueError("Replicate service not available")
         
-        # Create tasks for parallel generation
+        # Create tasks for parallel generation with timeout
+        async def generate_with_timeout(prompt: str, timeout: int = 60) -> Optional[str]:
+            """Generate single image with timeout."""
+            try:
+                return await asyncio.wait_for(
+                    self._generate_single_background_image(prompt),
+                    timeout=timeout
+                )
+            except asyncio.TimeoutError:
+                logger.error(f"Background generation timed out after {timeout}s for prompt: {prompt[:50]}...")
+                return None
+            except Exception as e:
+                logger.error(f"Background generation failed: {str(e)}")
+                return None
+        
         tasks = [
-            self._generate_single_background_image(prompt)
+            generate_with_timeout(prompt, timeout=60)
             for prompt in prompts
         ]
         
@@ -271,7 +285,11 @@ Return ONLY valid JSON in this format: {{"prompts": ["prompt 1", "prompt 2", ...
         for idx, result in enumerate(results):
             if isinstance(result, Exception):
                 logger.error(f"Background image {idx + 1} generation failed: {str(result)}")
-                image_urls.append(None)
+                # Use a placeholder image for failed generations
+                image_urls.append(f"https://via.placeholder.com/1920x1080.png?text=Background+{idx+1}")
+            elif result is None:
+                # Use placeholder for timeouts/failures
+                image_urls.append(f"https://via.placeholder.com/1920x1080.png?text=Background+{idx+1}")
             else:
                 image_urls.append(result)
         
