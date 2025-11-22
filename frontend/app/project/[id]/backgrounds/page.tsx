@@ -4,7 +4,7 @@ import { useEffect, Suspense } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useBackgroundGeneration } from '@/hooks/useBackgroundGeneration';
 import { useAppStore } from '@/store/appStore';
-import { useProjectStore } from '@/store/projectStore';
+import { useProject } from '@/hooks/useProject';
 import { BackgroundGallery } from '@/components/backgrounds/BackgroundGallery';
 import { StepSkeleton } from '@/components/ui/LoadingFallback';
 import { listBackgroundAssets } from '@/lib/api/background';
@@ -25,26 +25,51 @@ export default function BackgroundsPage() {
     selectedBackgroundIds,
     setCurrentStep,
   } = useAppStore();
-  const { loadProject, getCurrentProject, currentProjectId, updateProject } = useProjectStore();
+  
+  // Use the same hook as mood page for consistency
+  const { project, isLoading: isProjectLoading, error: projectError } = useProject(projectId);
 
-  // Load project on mount
+  // Restore appStore from project's appStateSnapshot
   useEffect(() => {
-    if (projectId && projectId !== currentProjectId) {
-      loadProject(projectId).catch(error => {
-        console.error('Failed to load project:', error);
-        router.push('/projects');
-      });
+    console.log('[BackgroundsPage] Project data:', {
+      projectId,
+      hasProject: !!project,
+      hasAppStateSnapshot: !!project?.appStateSnapshot,
+      hasCreativeBriefInSnapshot: !!project?.appStateSnapshot?.creativeBrief,
+      creativeBriefFromSnapshot: project?.appStateSnapshot?.creativeBrief,
+      currentCreativeBriefInStore: creativeBrief
+    });
+    
+    if (project?.appStateSnapshot) {
+      console.log('[BackgroundsPage] Restoring appStore from project snapshot');
+      const snapshot = project.appStateSnapshot;
+      const appStore = useAppStore.getState();
+      
+      // Restore creative brief (this is what we need for background generation!)
+      if (snapshot.creativeBrief) {
+        console.log('[BackgroundsPage] Restoring creative brief:', snapshot.creativeBrief);
+        appStore.setCreativeBrief(snapshot.creativeBrief);
+      } else {
+        console.warn('[BackgroundsPage] No creative brief in snapshot!');
+      }
+      
+      // Restore other relevant state
+      if (snapshot.moods) appStore.setMoods(snapshot.moods);
+      if (snapshot.selectedMoodId) appStore.selectMood(snapshot.selectedMoodId);
+      if (snapshot.backgroundAssets) appStore.setBackgroundAssets(snapshot.backgroundAssets);
+      if (snapshot.selectedBackgroundIds) appStore.setSelectedBackgroundIds(snapshot.selectedBackgroundIds);
+    } else {
+      console.warn('[BackgroundsPage] No appStateSnapshot in project!');
     }
-  }, [projectId, currentProjectId, loadProject, router]);
+  }, [project, projectId, creativeBrief]);
 
-  // Verify project exists
+  // Handle project loading errors
   useEffect(() => {
-    const project = getCurrentProject();
-    if (projectId && !project) {
-      console.error('Project not found:', projectId);
+    if (projectError) {
+      console.error('[BackgroundsPage] Failed to load project:', projectError);
       router.push('/projects');
     }
-  }, [projectId, getCurrentProject, router]);
+  }, [projectError, router]);
 
   const {
     isLoading: isBackgroundLoading,
@@ -53,10 +78,9 @@ export default function BackgroundsPage() {
     selectBackgrounds,
   } = useBackgroundGeneration();
 
-  // Load existing background assets if project has backgroundAssetIds
+  // Load existing background assets from appStateSnapshot
   useEffect(() => {
-    const project = getCurrentProject();
-    const projectBackgroundAssetIds = project?.backgroundAssetIds || [];
+    const projectBackgroundAssetIds = project?.appStateSnapshot?.selectedBackgroundIds || [];
     
     if (projectBackgroundAssetIds.length > 0 && backgroundAssets.length === 0 && !isBackgroundLoading) {
       // Try to load existing background assets
@@ -80,7 +104,7 @@ export default function BackgroundsPage() {
           console.error('Failed to load background assets:', error);
         });
     }
-  }, [getCurrentProject, backgroundAssets.length, isBackgroundLoading]);
+  }, [project, backgroundAssets.length, isBackgroundLoading]);
 
   // Auto-generate backgrounds when page loads if no backgrounds exist
   useEffect(() => {
@@ -97,7 +121,13 @@ export default function BackgroundsPage() {
   }, [backgroundAssets.length, isBackgroundLoading, creativeBrief, generateBackgroundsFromBrief]);
 
   const handleGenerateBackgrounds = async () => {
-    if (!creativeBrief) return;
+    console.log('[BackgroundsPage] handleGenerateBackgrounds called');
+    console.log('[BackgroundsPage] creativeBrief:', creativeBrief);
+    
+    if (!creativeBrief) {
+      console.warn('[BackgroundsPage] No creative brief available, cannot generate backgrounds');
+      return;
+    }
     
     // Clear existing backgrounds and selection when regenerating
     const { setBackgroundAssets, setSelectedBackgroundIds } = useAppStore.getState();
@@ -112,6 +142,7 @@ export default function BackgroundsPage() {
       key_messages: creativeBrief.key_messages || [],
     };
     
+    console.log('[BackgroundsPage] Calling generateBackgroundsFromBrief with:', request);
     await generateBackgroundsFromBrief(request);
   };
 
@@ -122,23 +153,12 @@ export default function BackgroundsPage() {
       : currentIds.filter(id => id !== backgroundId);
     selectBackgrounds(newIds);
     
-    // Update project with selected background IDs
-    const project = getCurrentProject();
-    if (project) {
-      updateProject(projectId, {
-        backgroundAssetIds: newIds,
-      });
-    }
+    // The selection is automatically saved via appStateSnapshot
+    // through the auto-save mechanism in projectStore
   };
 
   const handleContinue = () => {
-    // Save selected background IDs to project
-    const project = getCurrentProject();
-    if (project && selectedBackgroundIds.length > 0) {
-      updateProject(projectId, {
-        backgroundAssetIds: selectedBackgroundIds,
-      });
-    }
+    // Background selections are already saved via appStateSnapshot auto-save
     
     // Navigate to scenes page
     setCurrentStep(STEPS.SCENES);

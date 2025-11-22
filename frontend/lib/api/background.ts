@@ -46,9 +46,14 @@ async function getAuthToken(): Promise<string | null> {
 export async function generateBackgrounds(
   creativeBrief: BackgroundGenerationRequest
 ): Promise<BackgroundGenerationResponse> {
+  console.log('[API] generateBackgrounds called with:', creativeBrief);
   const authToken = await getAuthToken();
+  console.log('[API] Auth token:', authToken ? 'present' : 'missing');
   
-  const response = await fetch(`${API_URL}/api/background/generate`, {
+  const url = `${API_URL}/api/background/generate`;
+  console.log('[API] Making request to:', url);
+  
+  const response = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

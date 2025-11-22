@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { Checkbox } from '@/components/ui/checkbox';
-import { useProjectStore } from '@/store/projectStore';
+import { useProject } from '@/hooks/useProject';
 import { useSceneStore } from '@/store/sceneStore';
 import { listBrandAssets, getBrandAssetImageUrl } from '@/lib/api/brand';
 import { listCharacterAssets, getCharacterAssetImageUrl } from '@/lib/api/character';
@@ -14,11 +14,12 @@ import type { CharacterAssetStatus } from '@/types/character.types';
 import type { BackgroundAssetStatus } from '@/types/background.types';
 
 interface SceneAssetToggleSectionProps {
+  projectId: string;
   scene: StoryboardScene;
 }
 
-export function SceneAssetToggleSection({ scene }: SceneAssetToggleSectionProps) {
-  const { getCurrentProject } = useProjectStore();
+export function SceneAssetToggleSection({ projectId, scene }: SceneAssetToggleSectionProps) {
+  const { project } = useProject(projectId);
   const { enableBrandAsset, disableBrandAsset, enableCharacterAsset, disableCharacterAsset, enableBackgroundAsset, disableBackgroundAsset } = useSceneStore();
   
   const [brandAssets, setBrandAssets] = useState<BrandAssetStatus[]>([]);
@@ -30,11 +31,10 @@ export function SceneAssetToggleSection({ scene }: SceneAssetToggleSectionProps)
   const [isTogglingBrand, setIsTogglingBrand] = useState(false);
   const [isTogglingCharacter, setIsTogglingCharacter] = useState(false);
   const [isTogglingBackground, setIsTogglingBackground] = useState(false);
-
-  const project = getCurrentProject();
-  const projectBrandAssetIds = project?.brandAssetIds || [];
-  const projectCharacterAssetIds = project?.characterAssetIds || [];
-  const projectBackgroundAssetIds = project?.backgroundAssetIds || [];
+  // Read asset IDs from appStateSnapshot (Option 3 - single source of truth)
+  const projectBrandAssetIds = project?.appStateSnapshot?.selectedBrandIds || [];
+  const projectCharacterAssetIds = project?.appStateSnapshot?.selectedCharacterIds || [];
+  const projectBackgroundAssetIds = project?.appStateSnapshot?.selectedBackgroundIds || [];
 
   // Load brand assets
   useEffect(() => {

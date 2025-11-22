@@ -510,6 +510,7 @@ function ScenesPageContent() {
 
         <div className="animate-slideUp animation-delay-100">
           <StoryboardCarousel
+            projectId={projectId}
             storyboard={storyboardForCarousel}
             scenes={storyboardScenes}
             onRegenerateAll={handleRegenerateAll}

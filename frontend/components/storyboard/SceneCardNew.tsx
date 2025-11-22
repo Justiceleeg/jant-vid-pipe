@@ -11,6 +11,7 @@ import { SceneAssetDisplay } from './SceneAssetDisplay';
 import { SceneAssetToggleSection } from './SceneAssetToggleSection';
 
 interface SceneCardNewProps {
+  projectId: string;
   scene: StoryboardScene;
   sceneNumber: number;
   onApproveText: () => Promise<void>;
@@ -24,6 +25,7 @@ interface SceneCardNewProps {
 }
 
 export function SceneCardNew({
+  projectId,
   scene,
   sceneNumber,
   onApproveText,
@@ -182,7 +184,7 @@ export function SceneCardNew({
             
             {/* Asset Toggle Section */}
             <div className="pt-4 border-t border-border">
-              <SceneAssetToggleSection scene={scene} />
+              <SceneAssetToggleSection projectId={projectId} scene={scene} />
             </div>
             
             {/* Asset Display (read-only, shows what's selected) */}

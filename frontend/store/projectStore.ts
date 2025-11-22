@@ -1,10 +1,9 @@
 import { create } from 'zustand';
-import type { Project, ProjectMetadata, AppStateSnapshot, CreateProjectRequest, UpdateProjectRequest } from '@/types/project.types';
+import type { Project, ProjectMetadata, AppStateSnapshot, CreateProjectRequest, UpdateProjectRequest } from '@/types/project';
 import { migrateNumericStep } from '@/lib/steps';
 import { useAppStore } from './appStore';
 import { useSceneStore } from './sceneStore';
 import { projectsApi } from '@/lib/api/projects';
-import type { CreateProjectRequest as ApiCreateProjectRequest } from '@/types/project';
 
 const PROJECTS_STORAGE_KEY = 'jant-vid-pipe-projects';
 const CURRENT_PROJECT_STORAGE_KEY = 'jant-vid-pipe-current-project-id';
@@ -121,15 +120,27 @@ export const useProjectStore = create<ProjectStoreState>((set, get) => ({
         // First create the project locally for immediate UI feedback
         const tempId = crypto.randomUUID();
         const now = new Date().toISOString();
+        const snapshot = createAppStateSnapshot();
         const newProject: Project = {
           id: tempId,
           name,
+          description: request?.description,
+          userId: 'demo-user', // Will be replaced by backend
           createdAt: now,
           updatedAt: now,
-          brandAssetIds: request?.brandAssetIds || [],
-          characterAssetIds: request?.characterAssetIds || [],
-          backgroundAssetIds: request?.backgroundAssetIds || [],
-          appState: createAppStateSnapshot(),
+          storyboard: {
+            id: crypto.randomUUID(),
+            title: name,
+            creativeBrief: undefined,
+            selectedMood: undefined,
+          },
+          scenes: [],
+          stats: {
+            totalScenes: 0,
+            completedScenes: 0,
+            lastActivity: now,
+          },
+          appStateSnapshot: snapshot,
         };
 
         set({
@@ -145,11 +156,13 @@ export const useProjectStore = create<ProjectStoreState>((set, get) => ({
           // Create project in backend with minimal data
           const createRequest: any = {
             name,
-            description: '',
+            description: request?.description || '',
             storyboardTitle: name,
             // Don't send creative_brief or selectedMood until they're actually created
             creativeBrief: null,
             selectedMood: null,
+            // Send the full app state snapshot for Option 3 implementation
+            appStateSnapshot: snapshot,
           };
 
           const createdProject = await projectsApi.create(createRequest);
@@ -260,18 +273,30 @@ export const useProjectStore = create<ProjectStoreState>((set, get) => ({
         // If not found locally, try to fetch from backend
         if (!project) {
           console.log(`[ProjectStore] Project not in local cache, fetching from backend: ${id}`);
+          console.log('[ProjectStore] Current cached projects:', state.projects.map(p => ({ id: p.id, name: p.name })));
           try {
             const fetchedProject = await projectsApi.get(id);
-            console.log('[ProjectStore] Fetched project from backend:', fetchedProject);
+            console.log('[ProjectStore] Fetched project from backend:', {
+              id: fetchedProject.id,
+              name: fetchedProject.name,
+              hasSnapshot: !!fetchedProject.appStateSnapshot,
+              userId: fetchedProject.userId
+            });
             
             // Add to local state
             project = fetchedProject as Project;
             set({
               projects: [...state.projects, project],
             });
-          } catch (error) {
-            console.error(`[ProjectStore] Failed to fetch project from backend: ${id}`, error);
-            return;
+          } catch (error: any) {
+            console.error(`[ProjectStore] Failed to fetch project from backend: ${id}`);
+            console.error('[ProjectStore] Error details:', {
+              message: error?.message,
+              response: error?.response,
+              status: error?.status,
+              projectId: id
+            });
+            throw error; // Re-throw to be caught by component
           }
         }
 
@@ -296,11 +321,10 @@ export const useProjectStore = create<ProjectStoreState>((set, get) => ({
         // Reset scene store FIRST to clear any previous project's scenes
         useSceneStore.getState().reset();
 
-        // Check if project has app_state_snapshot from backend (Option 3)
-        if ((project as any).appStateSnapshot) {
-          console.log('[ProjectStore] Restoring from backend appStateSnapshot');
-          // Restore from the full snapshot saved in backend
-          const snapshot = (project as any).appStateSnapshot;
+        // Restore from appStateSnapshot (Option 3 - single source of truth)
+        if (project.appStateSnapshot) {
+          console.log('[ProjectStore] Restoring from appStateSnapshot');
+          const snapshot = project.appStateSnapshot as AppStateSnapshot;
           const appStore = useAppStore.getState();
           
           // Restore all fields from the snapshot
@@ -322,12 +346,10 @@ export const useProjectStore = create<ProjectStoreState>((set, get) => ({
           if (snapshot.audioUrl !== undefined) appStore.setAudioUrl(snapshot.audioUrl);
           if (snapshot.compositionJobId !== undefined) appStore.setCompositionJobId(snapshot.compositionJobId);
           if (snapshot.finalVideo !== undefined) appStore.setFinalVideo(snapshot.finalVideo);
-          
-          // Any other fields in the snapshot should also be restored
-          // This ensures forward compatibility
-        } else if ((project as any).appState) {
-          // Fallback to existing appState format
-          restoreAppState((project as any).appState);
+        } else {
+          console.warn('[ProjectStore] No appStateSnapshot found, starting with fresh state');
+          // Reset stores to ensure clean state
+          useAppStore.getState().reset();
         }
 
         // Load storyboard if storyboardId exists
@@ -415,7 +437,7 @@ export const useProjectStore = create<ProjectStoreState>((set, get) => ({
           updatedAt: project.updatedAt,
           thumbnail: project.thumbnail,
           storyboardId: project.storyboardId,
-          currentStep: project.appState.currentStep,
+          currentStep: project.appStateSnapshot?.currentStep || 'CHAT',
         }));
       },
 
@@ -450,8 +472,8 @@ export const useProjectStore = create<ProjectStoreState>((set, get) => ({
         }
 
         // Priority 2: Try to get thumbnail from mood images
-        if (project.appState.moods.length > 0) {
-          const firstMood = project.appState.moods[0];
+        if (project.appStateSnapshot?.moods && project.appStateSnapshot.moods.length > 0) {
+          const firstMood = project.appStateSnapshot.moods[0];
           if (firstMood.images.length > 0) {
             return firstMood.images[0].url;
           }

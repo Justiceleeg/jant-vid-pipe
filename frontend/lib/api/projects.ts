@@ -126,9 +126,16 @@ export const projectsApi = {
    * Get a single project by ID
    */
   async get(projectId: string): Promise<Project> {
+    console.log('[projectsApi] Getting project:', projectId);
     const response = await apiRequest<any>(`/api/projects/${projectId}`);
     // Backend wraps response in { project: ..., signed_urls: ... }
     const projectData = response.project || response;
+    console.log('[projectsApi] Got project response:', {
+      id: projectData?.id,
+      name: projectData?.name,
+      userId: projectData?.userId,
+      hasSnapshot: !!projectData?.appStateSnapshot
+    });
     return projectData;
   },
 

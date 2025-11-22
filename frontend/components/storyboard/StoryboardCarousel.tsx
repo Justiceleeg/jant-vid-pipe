@@ -10,6 +10,7 @@ import { useAudioGeneration } from '@/hooks/useAudioGeneration';
 import type { AudioGenerationRequest } from '@/types/audio.types';
 
 interface StoryboardCarouselProps {
+  projectId: string;
   storyboard: Storyboard;
   scenes: StoryboardScene[];
   onRegenerateAll: () => Promise<void>;
@@ -27,6 +28,7 @@ interface StoryboardCarouselProps {
 }
 
 export function StoryboardCarousel({
+  projectId,
   storyboard,
   scenes,
   onRegenerateAll,
@@ -220,6 +222,7 @@ export function StoryboardCarousel({
                   style={{ minWidth: '100%' }}
                 >
                   <SceneCardNew
+                    projectId={projectId}
                     scene={scene}
                     sceneNumber={storyboard.scene_order.indexOf(scene.id) + 1}
                     onApproveText={() => onApproveText(scene.id)}

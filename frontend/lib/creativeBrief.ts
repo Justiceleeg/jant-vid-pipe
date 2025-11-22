@@ -13,11 +13,11 @@ export function isCreativeBriefComplete(brief: CreativeBrief | null): boolean {
   if (!brief) return false;
 
   return (
-    brief.product_name.trim().length > 0 &&
-    brief.target_audience.trim().length > 0 &&
-    brief.emotional_tone.length > 0 &&
-    brief.visual_style_keywords.length > 0 &&
-    brief.key_messages.length > 0
+    typeof brief.product_name === 'string' && brief.product_name.trim().length > 0 &&
+    typeof brief.target_audience === 'string' && brief.target_audience.trim().length > 0 &&
+    Array.isArray(brief.emotional_tone) && brief.emotional_tone.length > 0 &&
+    Array.isArray(brief.visual_style_keywords) && brief.visual_style_keywords.length > 0 &&
+    Array.isArray(brief.key_messages) && brief.key_messages.length > 0
   );
 }
 

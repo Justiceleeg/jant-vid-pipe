@@ -125,3 +125,13 @@ The architecture isn't broken - it's just **overcomplicated** with multiple ways
 - Cache assumptions are wrong
 
 The fix is to **pick one way** and use it consistently.
+
+## ✅ UPDATE: Option 3 Implemented (Nov 22, 2025)
+
+**FIXED**: We fully implemented Option 3 - appStateSnapshot as single source of truth
+- Deleted firestoreProjectStore.ts (520 lines of dead code)
+- Deleted project.types.ts (duplicate type causing confusion)
+- All components now read/write via appStateSnapshot
+- Background persistence now works!
+
+See `OPTION3_IMPLEMENTATION_COMPLETE.md` for full details.

@@ -1,11 +1,11 @@
 "use client";
 
 import { useUser } from "@clerk/nextjs";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter, usePathname, useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { UserAvatar } from "@/components/auth/UserAvatar";
 import { AuthLoadingSkeleton } from "@/components/auth/AuthLoadingSkeleton";
-import { useProjectStore } from "@/store/projectStore";
+import { useProject } from "@/hooks/useProject";
 import { cn } from "@/lib/utils";
 
 /**
@@ -18,11 +18,14 @@ export function Navbar() {
   const { isLoaded, isSignedIn } = useUser();
   const router = useRouter();
   const pathname = usePathname();
-  const { getCurrentProject } = useProjectStore();
+  const params = useParams();
 
-  // Check if we're on a project page
+  // Check if we're on a project page and get project ID
   const isProjectPage = pathname?.startsWith("/project/");
-  const currentProject = isProjectPage ? getCurrentProject() : null;
+  const projectId = isProjectPage ? params.id as string : null;
+  
+  // Use the useProject hook for consistency
+  const { project: currentProject } = useProject(projectId || '');
 
   // DEVELOPMENT: Skip auth loading in development
   const isDevelopment = process.env.NODE_ENV === 'development';

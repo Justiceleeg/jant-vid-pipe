@@ -19,6 +19,9 @@ import type {
   JobType,
   JobStatus
 } from '../../shared/types/firestore-schema';
+import type { StepName } from '@/lib/steps';
+import type { CreativeBrief as ChatCreativeBrief } from '@/types/chat.types';
+import type { Mood } from '@/types/mood.types';
 
 /**
  * Frontend-friendly timestamp representation
@@ -109,26 +112,64 @@ export interface Project {
   storyboard: EmbeddedStoryboard;
   scenes: Scene[];
   stats: ProjectStats;
+  thumbnail?: string; // Base64 or URL to thumbnail image
+  storyboardId?: string; // Reference to storyboard (not full state)
   // Option 3: Full app state snapshot for perfect sync
   appStateSnapshot?: Record<string, any>;
   snapshotVersion?: number;
 }
 
 /**
+ * Lightweight project metadata for listings.
+ * Used when displaying project cards without loading full state.
+ */
+export interface ProjectMetadata {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  thumbnail?: string;
+  storyboardId?: string;
+  currentStep: StepName;
+}
+
+/**
+ * Snapshot of appStore state for persistence.
+ * This is a serializable representation of the app state.
+ */
+export interface AppStateSnapshot {
+  currentStep: StepName;
+  creativeBrief: ChatCreativeBrief | null;
+  chatMessages: Array<{
+    id: string;
+    role: 'user' | 'assistant' | 'system';
+    content: string;
+    timestamp: string; // ISO string for serialization
+  }>;
+  moods: Mood[];
+  selectedMoodId: string | null;
+  backgroundAssets?: any[]; // BackgroundAssetStatus[] - stored in appState
+  selectedBackgroundIds?: string[]; // Stored in appState
+  storyboardCompleted: boolean;
+  audioUrl: string | null;
+  compositionJobId: string | null;
+  finalVideo: any | null;
+}
+
+/**
  * Request types for API calls
  */
 export interface CreateProjectRequest {
-  name: string;
+  name?: string; // Optional - will auto-generate if not provided
   description?: string;
-  creativeBrief: CreativeBrief;
-  selectedMood: SelectedMood;
-  storyboardTitle?: string;
 }
 
 export interface UpdateProjectRequest {
   name?: string;
   description?: string;
+  thumbnail?: string;
   storyboard?: EmbeddedStoryboard;
+  storyboardId?: string;
   appStateSnapshot?: Record<string, any>;
 }
 
