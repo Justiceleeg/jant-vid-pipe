@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
  * Shows loading skeleton while auth is loading, then conditionally renders
  * sign-in button or user avatar based on authentication status
  * Displays current project name in the center when on a project page
- * Shows back button on mood and scenes pages
+ * Shows back button on chat, mood, scenes, and backgrounds pages
  */
 export function Navbar() {
   const { isLoaded, isSignedIn } = useFirebaseAuth();
@@ -29,13 +29,16 @@ export function Navbar() {
   const currentProject = isProjectPage ? getCurrentProject() : null;
   const projectId = isProjectPage ? pathname.split("/")[2] : null;
 
-  // Check if we're on mood, scenes, or backgrounds page to show back button
+  // Check if we're on chat, mood, scenes, or backgrounds page to show back button
+  const isChatPage = pathname?.includes("/chat");
   const isMoodPage = pathname?.includes("/mood");
   const isScenesPage = pathname?.includes("/scenes");
   const isBackgroundsPage = pathname?.includes("/backgrounds");
 
   const handleBack = () => {
-    if (isMoodPage && projectId) {
+    if (isChatPage) {
+      router.push("/projects");
+    } else if (isMoodPage && projectId) {
       setCurrentStep(STEPS.CHAT);
       router.push(`/project/${projectId}/chat`);
     } else if (isScenesPage && projectId) {
@@ -48,6 +51,7 @@ export function Navbar() {
   };
 
   const getBackButtonText = () => {
+    if (isChatPage) return "Back to Projects";
     if (isMoodPage) return "Back to Chat";
     if (isScenesPage) return "Back to Background Selection";
     if (isBackgroundsPage) return "Back to Mood Selection";
@@ -82,8 +86,8 @@ export function Navbar() {
         >
           AI Video Pipeline
         </button>
-        {/* Back button - shown on mood, scenes, and backgrounds pages */}
-        {(isMoodPage || isScenesPage || isBackgroundsPage) && (
+        {/* Back button - shown on chat, mood, scenes, and backgrounds pages */}
+        {(isChatPage || isMoodPage || isScenesPage || isBackgroundsPage) && (
           <button
             onClick={handleBack}
             className="ml-6 flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-all duration-200 hover:gap-2 flex-shrink-0"
