@@ -271,6 +271,94 @@ async def update_scene(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/{project_id}/scenes/initialize", response_model=Project)
+async def initialize_scenes(
+    project_id: str,
+    http_request: Request
+) -> Project:
+    """
+    Initialize scenes for a project using AI-generated descriptions.
+    
+    This endpoint:
+    1. Gets creative brief and selected mood from the project
+    2. Generates 6 scene descriptions (placeholder for now)
+    3. Creates scene objects and adds them to the project
+    4. Returns updated project with scenes
+    
+    Args:
+        project_id: The project ID
+        http_request: FastAPI Request object for auth
+    
+    Returns:
+        Updated project with initialized scenes
+    """
+    try:
+        logger.info(f"[initialize_scenes] Starting for project {project_id}")
+        user_id = await get_current_user_id(http_request)
+        logger.info(f"[initialize_scenes] User ID: {user_id}")
+        
+        firestore_service = get_firestore_service()
+        
+        # Verify project ownership
+        logger.info(f"[initialize_scenes] Getting project...")
+        project = await firestore_service.get_project(project_id, user_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        logger.info(f"[initialize_scenes] Project found. Checking existing scenes...")
+        logger.info(f"[initialize_scenes] project.scenes type: {type(project.scenes)}, value: {project.scenes}")
+        
+        # Check if scenes already exist (handle None case)
+        existing_scenes = getattr(project, 'scenes', None) or []
+        logger.info(f"[initialize_scenes] Existing scenes count: {len(existing_scenes)}")
+        
+        if len(existing_scenes) > 0:
+            logger.info(f"Project {project_id} already has {len(existing_scenes)} scenes, skipping initialization")
+            return project
+        
+        # Get creative brief and mood for context
+        logger.info(f"[initialize_scenes] Getting creative brief and mood...")
+        creative_brief = None
+        selected_mood = None
+        if project.storyboard:
+            creative_brief = getattr(project.storyboard, 'creative_brief', None)
+            selected_mood = getattr(project.storyboard, 'selected_mood', None)
+        logger.info(f"[initialize_scenes] Creative brief exists: {creative_brief is not None}")
+        
+        # TODO: Call OpenAI to generate scene descriptions
+        # For now, create placeholder scenes with basic structure
+        logger.info(f"[initialize_scenes] Creating scene objects...")
+        scenes = []
+        for i in range(6):
+            scene = Scene(
+                id=str(uuid.uuid4()),
+                scene_number=i + 1,
+                title=f"Scene {i + 1}",
+                description=f"AI-generated description for scene {i + 1}",
+                duration_seconds=5.0
+            )
+            scenes.append(scene)
+        logger.info(f"[initialize_scenes] Created {len(scenes)} scene objects")
+        
+        # Add scenes to project
+        logger.info(f"[initialize_scenes] Adding scenes to project...")
+        for idx, scene in enumerate(scenes):
+            logger.info(f"[initialize_scenes] Adding scene {idx + 1}/{len(scenes)}: {scene.id}")
+            project = await firestore_service.add_scene(project_id, user_id, scene)
+            logger.info(f"[initialize_scenes] Scene {idx + 1} added successfully")
+        
+        logger.info(f"Initialized {len(scenes)} scenes for project {project_id}")
+        return project
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        logger.error(f"Error initializing scenes: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/{project_id}/scenes/{scene_id}/generate-video", response_model=GenerateVideoResponse)
 async def generate_video(
     project_id: str,

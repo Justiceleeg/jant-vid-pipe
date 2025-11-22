@@ -23,6 +23,41 @@ import type {
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 /**
+ * Get authentication token from Clerk
+ */
+async function getAuthToken(): Promise<string | null> {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  try {
+    const clerk = (window as any).Clerk;
+    if (!clerk) {
+      console.warn('Clerk not initialized');
+      return null;
+    }
+
+    await clerk.load();
+    const session = clerk.session;
+    if (!session) {
+      console.warn('No active Clerk session');
+      return null;
+    }
+
+    const token = await session.getToken();
+    if (!token) {
+      console.warn('No auth token available from session');
+      return null;
+    }
+
+    return token;
+  } catch (error) {
+    console.error('Failed to get auth token:', error);
+    return null;
+  }
+}
+
+/**
  * Base fetch wrapper with error handling
  */
 async function apiRequest<T>(
@@ -31,10 +66,14 @@ async function apiRequest<T>(
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
 
+  // Get auth token if available
+  const authToken = await getAuthToken();
+
   const response = await fetch(url, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
+      ...(authToken && { Authorization: `Bearer ${authToken}` }),
       ...options?.headers,
     },
   });

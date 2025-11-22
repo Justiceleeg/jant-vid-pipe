@@ -2,6 +2,16 @@ import { useEffect } from 'react';
 import { useSceneStore } from '@/store/sceneStore';
 
 /**
+ * DEPRECATED: Use useProjectScenes instead
+ *
+ * This hook is for legacy storyboard-based flow and will be removed.
+ *
+ * For new code, use:
+ * - useProjectScenes from @/hooks/useProjectScenes for scene operations
+ * - useProject from @/hooks/useProject for project data
+ *
+ * ---
+ *
  * Custom hook for storyboard operations
  *
  * Provides convenient access to storyboard state and actions,

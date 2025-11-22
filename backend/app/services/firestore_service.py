@@ -134,16 +134,16 @@ class FirestoreService:
 
         # Handle scene dates
         for scene in data.get('scenes', []):
-            if 'active_job' in scene:
+            if 'active_job' in scene and scene['active_job'] is not None:
                 for field in ['started_at', 'last_update']:
                     if field in scene['active_job'] and isinstance(scene['active_job'][field], str):
                         scene['active_job'][field] = datetime.fromisoformat(scene['active_job'][field])
 
-            if 'assets' in scene and 'generated_at' in scene['assets']:
+            if 'assets' in scene and scene['assets'] is not None and 'generated_at' in scene['assets']:
                 if isinstance(scene['assets']['generated_at'], str):
                     scene['assets']['generated_at'] = datetime.fromisoformat(scene['assets']['generated_at'])
 
-            if 'composition' in scene and 'generated_at' in scene['composition']:
+            if 'composition' in scene and scene['composition'] is not None and 'generated_at' in scene['composition']:
                 if isinstance(scene['composition']['generated_at'], str):
                     scene['composition']['generated_at'] = datetime.fromisoformat(scene['composition']['generated_at'])
 
@@ -246,6 +246,10 @@ class FirestoreService:
         if not project:
             return None
 
+        # Initialize scenes list if it doesn't exist
+        if project.scenes is None:
+            project.scenes = []
+
         # Add scene
         project.scenes.append(scene)
 
@@ -282,6 +286,10 @@ class FirestoreService:
         project = await self.get_project(project_id, user_id)
         if not project:
             return None
+
+        # Initialize scenes list if it doesn't exist
+        if project.scenes is None:
+            project.scenes = []
 
         # Find and update the scene
         scene_found = False

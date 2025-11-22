@@ -1,69 +1,40 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter, useParams, useSearchParams } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { StoryboardCarousel } from '@/components/storyboard';
-import { useStoryboard, useStoryboardRecovery } from '@/hooks/useStoryboard';
+import { useProjectScenes } from '@/hooks/useProjectScenes';
+import { useProject } from '@/hooks/useProject';
 import { useAppStore } from '@/store/appStore';
-import { useProjectStore } from '@/store/projectStore';
 import { ToastProvider, useToast } from '@/components/ui/Toast';
 import { ErrorAlert } from '@/components/ui/ErrorAlert';
 import { STEPS } from '@/lib/steps';
 
 /**
- * Unified Storyboard Interface Page
+ * Scenes Page - Project-Centric Implementation
  *
- * This page replaces the traditional Step 3 (Scenes) with a carousel-based
- * progressive workflow (Text → Image → Video).
+ * This page displays and manages scenes for a project using the new
+ * project-centric API and real-time Firestore subscriptions.
  */
 function ScenesPageContent() {
   const { addToast } = useToast();
   const router = useRouter();
   const params = useParams();
   const projectId = params.id as string;
-  const searchParams = useSearchParams();
-  const urlStoryboardId = searchParams.get('id');
 
-  // App-level state for creative brief and mood
-  const { creativeBrief, moods, selectedMoodId, setCurrentStep, setStoryboardCompleted } = useAppStore();
-  const { loadProject, getCurrentProject, currentProjectId } = useProjectStore();
-  
-  // Get storyboardId from URL or from current project
-  const currentProject = getCurrentProject();
-  const storyboardId = urlStoryboardId || currentProject?.storyboardId;
+  // App-level state
+  const { setCurrentStep, setStoryboardCompleted } = useAppStore();
 
-  // Load project on mount
-  useEffect(() => {
-    if (projectId && projectId !== currentProjectId) {
-      try {
-        loadProject(projectId);
-      } catch (error) {
-        console.error('Failed to load project:', error);
-        router.push('/projects');
-      }
-    }
-  }, [projectId, currentProjectId, loadProject, router]);
+  // Load project data with real-time updates
+  const { project, isLoading: isProjectLoading, error: projectError } = useProject(projectId);
 
-  // Verify project exists
-  useEffect(() => {
-    const project = getCurrentProject();
-    if (projectId && !project) {
-      console.error('Project not found:', projectId);
-      router.push('/projects');
-    }
-  }, [projectId, getCurrentProject, router]);
-
-  // Storyboard store
+  // Load scenes with real-time updates via project API
   const {
-    storyboard,
     scenes,
     isLoading,
     isSaving,
     isRegeneratingAll,
     error,
-    initializeStoryboard,
-    loadStoryboard,
-    regenerateAllScenes,
     approveText,
     regenerateText,
     editText,
@@ -71,60 +42,25 @@ function ScenesPageContent() {
     regenerateImage,
     updateDuration,
     regenerateVideo,
-  } = useStoryboard();
+    regenerateAllScenes,
+    setError,
+  } = useProjectScenes(projectId);
 
-  // Session recovery
-  const { isRecovering } = useStoryboardRecovery();
-
-  // Initialize or load storyboard
+  // Debug logging
   useEffect(() => {
-    // Skip if already loading or if storyboard exists and matches
-    if (isLoading || isRecovering) return;
-    if (storyboard && storyboardId && storyboard.storyboard_id === storyboardId) return;
-    
-    // If we have a storyboardId (from URL or project), load it
-    if (storyboardId) {
-      console.log('[Page] Loading storyboard:', storyboardId, urlStoryboardId ? '(from URL)' : '(from project)');
-      loadStoryboard(storyboardId);
-    } 
-    // Only initialize new storyboard if we don't have one and we have the required data
-    else if (!storyboard && creativeBrief && selectedMoodId) {
-      const selectedMood = moods.find((m) => m.id === selectedMoodId);
-      if (selectedMood) {
-        console.log('[Page] Initializing new storyboard');
-        initializeStoryboard(creativeBrief, selectedMood);
-      }
-    }
-  }, [storyboardId, urlStoryboardId, storyboard, creativeBrief, selectedMoodId, moods, isLoading, isRecovering, loadStoryboard, initializeStoryboard]);
+    console.log('[ScenesPage] Scenes updated:', scenes);
+    console.log('[ScenesPage] Scenes count:', scenes.length);
+    console.log('[ScenesPage] isLoading:', isLoading);
+    console.log('[ScenesPage] error:', error);
+  }, [scenes, isLoading, error]);
 
-  // Save storyboardId to project immediately when storyboard is created
+  // Handle project loading errors
   useEffect(() => {
-    if (storyboard && currentProjectId) {
-      const project = getCurrentProject();
-      // If project doesn't have this storyboardId yet, save it immediately
-      if (project && project.storyboardId !== storyboard.storyboard_id) {
-        console.log('[Page] Saving new storyboardId to project:', storyboard.storyboard_id);
-        useProjectStore.getState().saveCurrentProject();
-      }
+    if (projectError) {
+      console.error('[ScenesPage] Failed to load project:', projectError);
+      router.push('/projects');
     }
-  }, [storyboard, currentProjectId, getCurrentProject]);
-
-  // Update project thumbnail when scene images are generated
-  useEffect(() => {
-    if (scenes.length > 0 && currentProjectId) {
-      const firstSceneWithImage = scenes.find(scene => scene.image_url);
-      if (firstSceneWithImage) {
-        const project = getCurrentProject();
-        // Update thumbnail if it's different or doesn't exist
-        if (project && project.thumbnail !== firstSceneWithImage.image_url) {
-          console.log('[Page] Updating project thumbnail with scene image');
-          useProjectStore.getState().updateProject(currentProjectId, {
-            thumbnail: firstSceneWithImage.image_url
-          });
-        }
-      }
-    }
-  }, [scenes, currentProjectId, getCurrentProject]);
+  }, [projectError, router]);
 
   // Handle operations with toast feedback
   const handleApproveText = async (sceneId: string) => {
@@ -170,7 +106,6 @@ function ScenesPageContent() {
         duration: 3000,
       });
     } catch (error) {
-      // Extract error message properly
       let errorMessage = 'Failed to update text';
       if (error instanceof Error) {
         errorMessage = error.message;
@@ -270,29 +205,25 @@ function ScenesPageContent() {
     }
   };
 
-  // Handle preview all scenes
   const handlePreviewAll = () => {
-    // Preview modal is now part of StoryboardCarousel
     console.log('Preview all scenes');
   };
 
-  // Handle generate final video
   const handleGenerateFinalVideo = () => {
-    // Mark storyboard as completed and navigate to final composition
     setStoryboardCompleted(true);
     setCurrentStep(STEPS.FINAL);
     router.push(`/project/${projectId}/final`);
   };
 
   // Loading state
-  if (isLoading || isRecovering) {
+  if (isLoading || isProjectLoading) {
     return (
       <div className="flex min-h-[calc(100vh-80px)] sm:min-h-[calc(100vh-100px)] items-center justify-center p-3 sm:p-4 md:p-6 lg:p-8 animate-fadeIn">
         <div className="w-full max-w-7xl space-y-3 sm:space-y-4 md:space-y-6 pt-4 sm:pt-6 md:pt-8">
           <div className="text-center space-y-4">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
             <p className="text-muted-foreground">
-              Loading Storyboard
+              Loading Scenes
             </p>
           </div>
         </div>
@@ -301,7 +232,7 @@ function ScenesPageContent() {
   }
 
   // Error state
-  if (error && !storyboard) {
+  if (error && scenes.length === 0) {
     return (
       <div className="flex min-h-[calc(100vh-80px)] sm:min-h-[calc(100vh-100px)] items-center justify-center p-3 sm:p-4 md:p-6 lg:p-8 animate-fadeIn">
         <div className="w-full max-w-7xl space-y-3 sm:space-y-4 md:space-y-6 pt-4 sm:pt-6 md:pt-8">
@@ -319,7 +250,7 @@ function ScenesPageContent() {
                 />
               </svg>
               <div>
-                <h3 className="font-semibold text-destructive mb-1">Error Loading Storyboard</h3>
+                <h3 className="font-semibold text-destructive mb-1">Error Loading Scenes</h3>
                 <p className="text-sm text-muted-foreground">{error}</p>
               </div>
             </div>
@@ -335,8 +266,8 @@ function ScenesPageContent() {
     );
   }
 
-  // No storyboard state
-  if (!storyboard || scenes.length === 0) {
+  // No scenes state
+  if (!project || scenes.length === 0) {
     return (
       <div className="flex min-h-[calc(100vh-80px)] sm:min-h-[calc(100vh-100px)] items-center justify-center p-3 sm:p-4 md:p-6 lg:p-8 animate-fadeIn">
         <div className="w-full max-w-7xl space-y-3 sm:space-y-4 md:space-y-6 pt-4 sm:pt-6 md:pt-8">
@@ -356,7 +287,7 @@ function ScenesPageContent() {
                 />
               </svg>
             </div>
-            <h3 className="text-lg font-semibold">No Storyboard Found</h3>
+            <h3 className="text-lg font-semibold">No Scenes Found</h3>
             <p className="text-sm text-muted-foreground">
               Please complete the creative brief and mood selection first.
             </p>
@@ -372,10 +303,46 @@ function ScenesPageContent() {
     );
   }
 
+  // Convert project scenes to storyboard format for carousel component
+  const storyboardForCarousel = {
+    storyboard_id: project.id,
+    title: project.storyboard?.title || project.name,
+    scene_order: scenes.map(s => s.id),
+    created_at: project.createdAt,
+    updated_at: project.updatedAt,
+    session_id: project.userId, // Legacy field
+    user_id: project.userId,
+    creative_brief: project.storyboard?.creativeBrief || {},
+    selected_mood: project.storyboard?.selectedMood || {},
+  };
+
+  // Convert Scene objects to StoryboardScene format
+  const storyboardScenes = scenes.map(scene => ({
+    id: scene.id,
+    storyboard_id: project.id,
+    state: (scene.assets?.videoPath ? 'video' : scene.assets?.thumbnailPath ? 'image' : 'text') as 'text' | 'image' | 'video',
+    text: scene.description,
+    style_prompt: '', // Not stored in Scene model
+    image_url: scene.assets?.thumbnailPath || null,
+    seed_image_urls: scene.assets?.thumbnailPath ? [scene.assets.thumbnailPath] : null,
+    video_url: scene.assets?.videoPath || null,
+    video_duration: scene.durationSeconds,
+    generation_status: {
+      image: scene.activeJob?.type === 'video' && scene.activeJob?.status === 'processing' ? 'generating' : 
+             scene.assets?.thumbnailPath ? 'complete' : 'pending',
+      video: scene.activeJob?.type === 'video' && scene.activeJob?.status === 'processing' ? 'generating' :
+             scene.assets?.videoPath ? 'complete' : 'pending',
+    },
+    error_message: scene.activeJob?.errorMessage || null,
+    created_at: project.createdAt, // Scene doesn't have its own timestamps
+    updated_at: project.updatedAt,
+    use_product_composite: false,
+    product_id: null,
+  }));
+
   return (
     <div className="flex min-h-[calc(100vh-80px)] sm:min-h-[calc(100vh-100px)] items-center justify-center p-3 sm:p-4 md:p-6 lg:p-8 animate-fadeIn">
       <div className="w-full max-w-7xl space-y-3 sm:space-y-4 md:space-y-6 pt-4 sm:pt-6 md:pt-8">
-        {/* Back button */}
         <button
           onClick={() => router.push(`/project/${projectId}/mood`)}
           className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-all duration-200 hover:gap-3 animate-slideUp"
@@ -396,7 +363,6 @@ function ScenesPageContent() {
           Back to Mood Selection
         </button>
 
-        {/* Header */}
         <div className="space-y-2 animate-slideUp animation-delay-100">
           <h1 className="text-2xl font-bold">Scene Storyboard</h1>
           <p className="text-muted-foreground">
@@ -404,22 +370,20 @@ function ScenesPageContent() {
           </p>
         </div>
 
-        {/* Error alert */}
         {error && (
           <div className="animate-slideUp animation-delay-100">
             <ErrorAlert
               error={error}
-              onDismiss={() => useStoryboard.getState().setError(null)}
+              onDismiss={() => setError(null)}
               showRetry={false}
             />
           </div>
         )}
 
-        {/* Storyboard Carousel */}
         <div className="animate-slideUp animation-delay-100">
           <StoryboardCarousel
-            storyboard={storyboard}
-            scenes={scenes}
+            storyboard={storyboardForCarousel}
+            scenes={storyboardScenes}
             onRegenerateAll={handleRegenerateAll}
             onPreviewAll={handlePreviewAll}
             onGenerateFinalVideo={handleGenerateFinalVideo}
@@ -434,7 +398,6 @@ function ScenesPageContent() {
           />
         </div>
 
-        {/* Loading overlay for regenerate all */}
         {isRegeneratingAll && (
           <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50">
             <div className="bg-card border border-border rounded-lg p-6 space-y-4 max-w-sm">
@@ -451,7 +414,6 @@ function ScenesPageContent() {
   );
 }
 
-// Wrap with ToastProvider
 export default function ScenesPage() {
   return (
     <ToastProvider>

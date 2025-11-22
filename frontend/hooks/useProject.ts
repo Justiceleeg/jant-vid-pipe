@@ -404,8 +404,9 @@ export function useProjects(userId?: string) {
   }, []);
 
   useEffect(() => {
-    // Load initial data
-    loadProjects();
+    // TEMPORARY: Skip backend API call, use only Firestore subscription
+    // TODO: Fix auth token passing, then re-enable backend API
+    // loadProjects();
 
     // Set up real-time subscription if userId is provided
     if (userId) {
@@ -414,6 +415,9 @@ export function useProjects(userId?: string) {
         setProjects(projects);
         setIsLoading(false);
       });
+    } else {
+      // No userId, can't subscribe - set loading false
+      setIsLoading(false);
     }
 
     // Cleanup on unmount
@@ -423,7 +427,7 @@ export function useProjects(userId?: string) {
         subscriptionRef.current = null;
       }
     };
-  }, [userId, loadProjects]);
+  }, [userId]);
 
   return {
     projects,

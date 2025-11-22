@@ -229,7 +229,8 @@ def calculate_project_progress(project: Project) -> int:
     Returns:
         Percentage of completion (0-100)
     """
-    if not project.scenes:
+    # Handle None or empty scenes
+    if project.scenes is None or len(project.scenes) == 0:
         return 0
 
     completed_scenes = sum(1 for scene in project.scenes if is_scene_complete(scene))
@@ -243,6 +244,10 @@ def update_project_stats(project: Project) -> None:
     Args:
         project: The project to update stats for
     """
+    # Initialize scenes list if it doesn't exist
+    if project.scenes is None:
+        project.scenes = []
+    
     project.stats.total_scenes = len(project.scenes)
     project.stats.completed_scenes = sum(
         1 for scene in project.scenes if is_scene_complete(scene)

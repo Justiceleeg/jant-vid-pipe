@@ -39,12 +39,13 @@ def generate_video_for_scene(event: firestore_fn.Event) -> None:
         "error_message": str | None
     }
     """
-    print(f"[Video Generation] Starting job {event.params['job_id']}")
-
     job_id = event.params['job_id']
     job_data = event.data.data
     project_id = job_data.get('project_id')
     scene_id = job_data.get('scene_id')
+    
+    print(f"[Video Generation] Starting job {job_id}")
+    print(f"[Video Generation] Project: {project_id}, Scene: {scene_id}, User: {job_data.get('user_id')}")
 
     if not project_id or not scene_id:
         print(f"[Video Generation] Missing project_id or scene_id")
@@ -98,6 +99,8 @@ def generate_video_for_scene(event: firestore_fn.Event) -> None:
 
         if not video_url:
             raise Exception("No video URL returned from Replicate")
+        
+        print(f"[Video Generation] Replicate completed. Video URL: {video_url[:50]}...")
 
         # Update progress
         ProjectFirestoreClient.update_scene_job_status(
@@ -145,6 +148,7 @@ def generate_video_for_scene(event: firestore_fn.Event) -> None:
         )
 
         print(f"[Video Generation] Successfully completed job {job_id}")
+        print(f"[Video Generation] Updated project {project_id}, scene {scene_id}")
 
     except Exception as e:
         _handle_error(job_id, str(e), project_id, scene_id, job_type='video')
@@ -172,12 +176,13 @@ def generate_composition_for_scene(event: firestore_fn.Event) -> None:
         "error_message": str | None
     }
     """
-    print(f"[Composition Generation] Starting job {event.params['job_id']}")
-
     job_id = event.params['job_id']
     job_data = event.data.data
     project_id = job_data.get('project_id')
     scene_id = job_data.get('scene_id')
+    
+    print(f"[Composition Generation] Starting job {job_id}")
+    print(f"[Composition Generation] Project: {project_id}, Scene: {scene_id}, User: {job_data.get('user_id')}")
 
     if not project_id or not scene_id:
         print(f"[Composition Generation] Missing project_id or scene_id")
@@ -301,6 +306,7 @@ def generate_composition_for_scene(event: firestore_fn.Event) -> None:
         )
 
         print(f"[Composition Generation] Successfully completed job {job_id}")
+        print(f"[Composition Generation] Updated project {project_id}, scene {scene_id}")
 
     except Exception as e:
         _handle_error(job_id, str(e), project_id, scene_id, job_type='composition')
@@ -329,12 +335,13 @@ def generate_videos_for_all_scenes(event: firestore_fn.Event) -> None:
         "error_message": str | None
     }
     """
-    print(f"[Multi-Scene Generation] Starting job {event.params['job_id']}")
-
     job_id = event.params['job_id']
     job_data = event.data.data
     project_id = job_data.get('project_id')
     scene_ids = job_data.get('scene_ids', [])
+    
+    print(f"[Multi-Scene Generation] Starting job {job_id}")
+    print(f"[Multi-Scene Generation] Project: {project_id}, Scenes: {len(scene_ids)}, User: {job_data.get('user_id')}")
 
     if not project_id or not scene_ids:
         print(f"[Multi-Scene Generation] Missing project_id or scene_ids")

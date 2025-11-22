@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, Suspense } from 'react';
+import { useEffect, Suspense, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useMoodGeneration } from '@/hooks/useMoodGeneration';
 import { useAppStore } from '@/store/appStore';
-import { useProjectStore } from '@/store/projectStore';
+import { useProject } from '@/hooks/useProject';
+import { projectsApi } from '@/lib/api/projects';
 import { MoodBoard } from '@/components/moods/MoodBoard';
 import { StepSkeleton } from '@/components/ui/LoadingFallback';
 import type { MoodGenerationRequest } from '@/types/mood.types';
@@ -24,28 +25,17 @@ export default function MoodPage() {
     selectedMoodId,
     setCurrentStep,
   } = useAppStore();
-  const { loadProject, getCurrentProject, currentProjectId } = useProjectStore();
+  
+  // Use the new project hook to load from Firestore
+  const { project, isLoading: isProjectLoading, error: projectError } = useProject(projectId);
 
-  // Load project on mount
+  // Handle project loading errors
   useEffect(() => {
-    if (projectId && projectId !== currentProjectId) {
-      try {
-        loadProject(projectId);
-      } catch (error) {
-        console.error('Failed to load project:', error);
-        router.push('/projects');
-      }
-    }
-  }, [projectId, currentProjectId, loadProject, router]);
-
-  // Verify project exists
-  useEffect(() => {
-    const project = getCurrentProject();
-    if (projectId && !project) {
-      console.error('Project not found:', projectId);
+    if (projectError) {
+      console.error('[MoodPage] Failed to load project:', projectError);
       router.push('/projects');
     }
-  }, [projectId, getCurrentProject, router]);
+  }, [projectError, router]);
 
   const {
     isLoading: isMoodLoading,
@@ -53,6 +43,8 @@ export default function MoodPage() {
     generateMoodsFromBrief,
     selectMood,
   } = useMoodGeneration();
+  
+  const [isInitializingScenes, setIsInitializingScenes] = useState(false);
 
   // Auto-generate moods when page loads if no moods exist
   useEffect(() => {
@@ -89,10 +81,24 @@ export default function MoodPage() {
     await generateMoodsFromBrief(request, projectId);
   };
 
-  const handleContinue = () => {
-    // Navigate to scenes page
-    setCurrentStep(STEPS.SCENES);
-    router.push(`/project/${projectId}/scenes`);
+  const handleContinue = async () => {
+    try {
+      setIsInitializingScenes(true);
+      
+      // Initialize scenes in project document before navigating
+      await projectsApi.initializeScenes(projectId);
+      
+      // Navigate to scenes page
+      setCurrentStep(STEPS.SCENES);
+      router.push(`/project/${projectId}/scenes`);
+    } catch (error) {
+      console.error('Failed to initialize scenes:', error);
+      // Still navigate to scenes page - scenes might already exist
+      setCurrentStep(STEPS.SCENES);
+      router.push(`/project/${projectId}/scenes`);
+    } finally {
+      setIsInitializingScenes(false);
+    }
   };
 
   const handleBack = () => {
@@ -134,7 +140,7 @@ export default function MoodPage() {
               onSelectMood={selectMood}
               onGenerate={handleGenerateMoods}
               onContinue={handleContinue}
-              isLoading={isMoodLoading}
+              isLoading={isMoodLoading || isInitializingScenes}
               error={moodError}
             />
           </Suspense>

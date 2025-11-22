@@ -65,17 +65,27 @@ async function getAuthToken(): Promise<string | null> {
   }
 
   try {
-    // Use the global Clerk instance
+    // Wait for Clerk to be loaded
     const clerk = (window as any).Clerk;
     if (!clerk) {
       console.warn('Clerk not initialized');
       return null;
     }
 
-    // Get the current session and token
-    const token = await clerk.session?.getToken();
+    // Wait for Clerk to be ready
+    await clerk.load();
+
+    // Get the active session
+    const session = clerk.session;
+    if (!session) {
+      console.warn('No active Clerk session');
+      return null;
+    }
+
+    // Get the JWT token
+    const token = await session.getToken();
     if (!token) {
-      console.warn('No auth token available');
+      console.warn('No auth token available from session');
       return null;
     }
 
@@ -194,6 +204,19 @@ export const projectsApi = {
       {
         method: 'POST',
         body: JSON.stringify(requestData),
+      }
+    );
+  },
+
+  /**
+   * Initialize scenes for a project
+   */
+  async initializeScenes(projectId: string): Promise<Project> {
+    return apiRequest<Project>(
+      `/api/projects/${projectId}/scenes/initialize`,
+      {
+        method: 'POST',
+        body: JSON.stringify({}),
       }
     );
   },

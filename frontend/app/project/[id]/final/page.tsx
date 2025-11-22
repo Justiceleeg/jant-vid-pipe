@@ -4,7 +4,7 @@ import { Suspense, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { StepSkeleton } from '@/components/ui/LoadingFallback';
 import { useAppStore } from '@/store/appStore';
-import { useProjectStore } from '@/store/projectStore';
+import { useProject } from '@/hooks/useProject';
 import { ToastProvider } from '@/components/ui/Toast';
 import { FinalComposition } from '@/components/composition/FinalComposition';
 import { STEPS } from '@/lib/steps';
@@ -18,28 +18,17 @@ function FinalPageContent() {
   const params = useParams();
   const projectId = params.id as string;
   const { setCurrentStep } = useAppStore();
-  const { loadProject, getCurrentProject, currentProjectId } = useProjectStore();
+  
+  // Use the new project hook to load from Firestore
+  const { project, isLoading: isProjectLoading, error: projectError } = useProject(projectId);
 
-  // Load project on mount
+  // Handle project loading errors
   useEffect(() => {
-    if (projectId && projectId !== currentProjectId) {
-      try {
-        loadProject(projectId);
-      } catch (error) {
-        console.error('Failed to load project:', error);
-        router.push('/projects');
-      }
-    }
-  }, [projectId, currentProjectId, loadProject, router]);
-
-  // Verify project exists
-  useEffect(() => {
-    const project = getCurrentProject();
-    if (projectId && !project) {
-      console.error('Project not found:', projectId);
+    if (projectError) {
+      console.error('[FinalPage] Failed to load project:', projectError);
       router.push('/projects');
     }
-  }, [projectId, getCurrentProject, router]);
+  }, [projectError, router]);
 
   const handleBack = () => {
     // Navigate back to scenes

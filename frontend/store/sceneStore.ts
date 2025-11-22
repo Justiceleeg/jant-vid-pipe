@@ -4,6 +4,19 @@ import * as storyboardAPI from '@/lib/api/storyboard';
 import { retryOperation, StoryboardError, ERROR_CODES, isSensitiveContentError, extractErrorMessage } from '@/lib/errors';
 
 /**
+ * DEPRECATED: Scene Store (Legacy Storyboard Flow)
+ *
+ * This store is for the legacy storyboard-based flow and is being phased out.
+ *
+ * New implementations should use:
+ * - useProject hook for project data with real-time updates
+ * - useProjectScenes hook for scene operations
+ * - Project-centric API endpoints in @/lib/api/projects
+ *
+ * This file will be removed in a future release.
+ *
+ * ---
+ *
  * Scene Store
  *
  * Manages scene/storyboard state with real-time updates via SSE.

@@ -22,6 +22,11 @@ from services.openai_handler import OpenAIHandler
 )
 def handle_image_generation(event: firestore_fn.Event) -> None:
     """
+    DEPRECATED: This function is for legacy storyboard-based flow.
+    Use project-based functions in project_functions.py instead.
+    
+    This function will be removed in a future release.
+    
     Cloud Function triggered when a new image generation job is created.
     
     Job document schema:
@@ -39,6 +44,7 @@ def handle_image_generation(event: firestore_fn.Event) -> None:
         "error_message": str | None
     }
     """
+    print("[DEPRECATED] handle_image_generation called - use project-based functions instead")
     print(f"[Image Generation] Function triggered for job {event.params['job_id']}")
     
     try:
@@ -144,6 +150,11 @@ def handle_image_generation(event: firestore_fn.Event) -> None:
 )
 def handle_video_generation(event: firestore_fn.Event) -> None:
     """
+    DEPRECATED: This function is for legacy storyboard-based flow.
+    Use project-based functions in project_functions.py instead.
+    
+    This function will be removed in a future release.
+    
     Cloud Function triggered when a new video generation job is created.
     
     Job document schema:
@@ -160,6 +171,7 @@ def handle_video_generation(event: firestore_fn.Event) -> None:
         "error_message": str | None
     }
     """
+    print("[DEPRECATED] handle_video_generation called - use project-based functions instead")
     print(f"[Video Generation] Function triggered for job {event.params['job_id']}")
     
     try:
@@ -247,6 +259,11 @@ def handle_video_generation(event: firestore_fn.Event) -> None:
 )
 def handle_multi_video_generation(event: firestore_fn.Event) -> None:
     """
+    DEPRECATED: This function is for legacy storyboard-based flow.
+    Use generate_videos_for_all_scenes in project_functions.py instead.
+    
+    This function will be removed in a future release.
+    
     Cloud Function for generating videos for multiple scenes.
     
     Job document schema:
@@ -262,6 +279,7 @@ def handle_multi_video_generation(event: firestore_fn.Event) -> None:
         "error_message": str | None
     }
     """
+    print("[DEPRECATED] handle_multi_video_generation called - use project-based functions instead")
     print(f"[Multi-Video Generation] Function triggered for job {event.params['job_id']}")
     
     try:
@@ -361,6 +379,11 @@ def handle_multi_video_generation(event: firestore_fn.Event) -> None:
 )
 def handle_composition(event: firestore_fn.Event) -> None:
     """
+    DEPRECATED: This function is for legacy storyboard-based flow.
+    Use generate_composition_for_scene in project_functions.py instead.
+    
+    This function will be removed in a future release.
+    
     Cloud Function for composing multiple video clips into final video.
     
     Job document schema:
@@ -378,6 +401,7 @@ def handle_composition(event: firestore_fn.Event) -> None:
         "error_message": str | None
     }
     """
+    print("[DEPRECATED] handle_composition called - use project-based functions instead")
     print(f"[Composition] Function triggered for job {event.params['job_id']}")
     
     try:
