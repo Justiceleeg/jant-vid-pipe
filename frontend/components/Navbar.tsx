@@ -70,8 +70,9 @@ export function Navbar() {
     >
       {/* Logo/Brand - left side */}
       <div className="flex items-center flex-1">
-        <h1 
-          className="font-display text-lg font-bold tracking-tight"
+        <button
+          onClick={() => router.push("/projects")}
+          className="font-display text-lg font-bold tracking-tight cursor-pointer hover:opacity-80 transition-opacity"
           style={{
             background: 'linear-gradient(90deg, rgb(255, 81, 1) 0%, rgb(255, 200, 50) 50%, rgb(196, 230, 43) 100%)',
             WebkitBackgroundClip: 'text',
@@ -80,7 +81,7 @@ export function Navbar() {
           }}
         >
           AI Video Pipeline
-        </h1>
+        </button>
         {/* Back button - shown on mood, scenes, and backgrounds pages */}
         {(isMoodPage || isScenesPage || isBackgroundsPage) && (
           <button

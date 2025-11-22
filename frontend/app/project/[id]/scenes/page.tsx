@@ -13,17 +13,16 @@ import { ErrorAlert } from '@/components/ui/ErrorAlert';
 import { Button } from '@/components/ui/button';
 import { STEPS } from '@/lib/steps';
 
-// Cheeky loading phrases that rotate
+// Storyboard-specific loading phrases that rotate
 const LOADING_PHRASES = [
-  "Crafting your perfect mood... ✨",
-  "Gathering inspiration just for you... 🎨",
-  "Setting the vibe... 🌈",
-  "Curating your mood board masterpiece... 🎭",
-  "Hang tight, creativity in progress... 🚀",
-  "Brewing some visual magic... ☕",
-  "Channeling your aesthetic... 🔮",
-  "Weaving together your vision... 🧵",
-  "Polishing every pixel... 💎",
+  "Planning your storyboard... 📝",
+  "Crafting scene narratives... 🎬",
+  "Designing your story flow... 🎭",
+  "Building scene sequences... 🎞️",
+  "Creating visual storyboards... ✨",
+  "Almost ready with your scenes... 🚀",
+  "Weaving scenes together... 🧵",
+  "Polishing storyboard details... 💎",
   "Almost there, promise! ⏳"
 ];
 
@@ -562,8 +561,9 @@ function ScenesPageContent() {
               variant="outline"
               onClick={() => setIsPreviewOpen(true)}
               disabled={isSaving || isRegeneratingAll || scenes.length === 0}
+              className="h-7 text-xs px-2"
             >
-              <svg className="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
@@ -574,11 +574,12 @@ function ScenesPageContent() {
               variant="default"
               onClick={handleRegenerateAll}
               disabled={isSaving || isRegeneratingAll}
+              className="h-7 text-xs px-2"
             >
               {isRegeneratingAll ? (
-                <div className="w-3.5 h-3.5 border-2 border-[rgb(196,230,43)] border-t-transparent rounded-full animate-spin mr-1.5" />
+                <div className="w-3 h-3 border-2 border-[rgb(196,230,43)] border-t-transparent rounded-full animate-spin mr-1" />
               ) : (
-                <svg className="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
               )}

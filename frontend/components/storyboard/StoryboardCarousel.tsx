@@ -230,22 +230,22 @@ export function StoryboardCarousel({
 
           {/* Compact audio */}
           {/* Compact Audio Component */}
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 h-9 flex-shrink-0">
             {audioUrl ? (
-              <div className="flex items-center gap-2 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-md px-3 py-1.5">
-                <span className="text-green-600 dark:text-green-400 text-xs">✓</span>
+              <div className="flex items-center gap-2 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-md px-3 py-1.5 h-full">
+                <span className="text-green-600 dark:text-green-400 text-xs flex-shrink-0">✓</span>
                 <audio
                   ref={audioRef}
                   controls
                   src={audioUrl}
-                  className="flex-1 h-7"
+                  className="flex-1 h-7 min-w-0"
                   preload="metadata"
                   style={{ accentColor: '#22c55e' }}
                 />
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="h-7 px-2 text-xs"
+                  className="h-7 px-2 text-xs flex-shrink-0"
                   onClick={handleRegenerateAudio}
                   disabled={isGeneratingAudio || isLoading || !creativeBrief || !selectedMoodId}
                   title="Regenerate audio"
@@ -260,15 +260,15 @@ export function StoryboardCarousel({
                 </Button>
               </div>
             ) : (
-              <div className="flex items-center gap-2 bg-muted/50 border border-border rounded-md px-3 py-1.5">
+              <div className="flex items-center gap-2 bg-muted/50 border border-border rounded-md px-3 py-1.5 h-full">
                 {isGeneratingAudio ? (
                   <>
-                    <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                    <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin flex-shrink-0" />
                     <span className="text-xs text-muted-foreground">Generating audio...</span>
                   </>
                 ) : (
                   <>
-                    <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full" />
+                    <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full flex-shrink-0" />
                     <span className="text-xs text-muted-foreground">No audio</span>
                   </>
                 )}
@@ -276,7 +276,7 @@ export function StoryboardCarousel({
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="h-7 px-2 text-xs ml-auto"
+                    className="h-7 px-2 text-xs ml-auto flex-shrink-0"
                     onClick={handleRegenerateAudio}
                     disabled={isLoading}
                   >

@@ -198,7 +198,7 @@ export function SceneAssetToggleSection({ scene }: SceneAssetToggleSectionProps)
       src={imageUrl}
       alt={alt}
       fill
-      className="object-contain"
+      className="object-cover"
       unoptimized
       priority={false}
     />
@@ -286,31 +286,31 @@ export function SceneAssetToggleSection({ scene }: SceneAssetToggleSectionProps)
 
     if (isLoading) {
       return (
-        <div className="flex items-center gap-2">
-          <label className="text-xs font-medium text-muted-foreground w-24 flex-shrink-0">{label}</label>
-          <div className="text-xs text-muted-foreground">Loading...</div>
+        <div className="flex items-center gap-3">
+          <label className="text-sm font-medium text-muted-foreground w-28 flex-shrink-0">{label}</label>
+          <div className="text-sm text-muted-foreground">Loading...</div>
         </div>
       );
     }
 
     if (assets.length === 0) {
       return (
-        <div className="flex items-center gap-2">
-          <label className="text-xs font-medium text-muted-foreground w-24 flex-shrink-0">{label}</label>
-          <div className="text-xs text-muted-foreground italic">No assets available</div>
+        <div className="flex items-center gap-3">
+          <label className="text-sm font-medium text-muted-foreground w-28 flex-shrink-0">{label}</label>
+          <div className="text-sm text-muted-foreground italic">No assets available</div>
         </div>
       );
     }
 
     return (
-      <div className="flex items-center gap-3">
-        <label className="text-xs font-medium text-muted-foreground w-24 flex-shrink-0">{label}</label>
-        <div className="relative flex-1 min-w-0">
+      <div className="flex items-center gap-3 overflow-visible">
+        <label className="text-sm font-medium text-muted-foreground w-28 flex-shrink-0">{label}</label>
+        <div className="relative flex-1 min-w-0 overflow-visible px-2">
           {/* Left Arrow */}
           {showLeftArrow && (
             <button
               onClick={() => scroll('left')}
-              className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-background/90 backdrop-blur-sm border border-border rounded-full w-6 h-6 flex items-center justify-center hover:bg-background shadow-md"
+              className="absolute left-2 top-1/2 -translate-y-1/2 z-20 bg-background/90 backdrop-blur-sm border border-border rounded-full w-7 h-7 flex items-center justify-center hover:bg-background shadow-md"
               aria-label="Scroll left"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -322,7 +322,7 @@ export function SceneAssetToggleSection({ scene }: SceneAssetToggleSectionProps)
           {/* Scrollable Container */}
           <div
             ref={scrollContainerRef}
-            className="flex items-center gap-2 overflow-x-auto scrollbar-hide"
+            className="flex items-center gap-3 overflow-x-auto overflow-y-visible scrollbar-hide py-2 px-4"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
           >
             {assets.map((asset) => {
@@ -333,11 +333,12 @@ export function SceneAssetToggleSection({ scene }: SceneAssetToggleSectionProps)
                   key={asset.asset_id}
                   onClick={() => onToggle(!isSelected, asset.asset_id)}
                   disabled={isToggling}
-                  className="relative w-16 h-16 flex-shrink-0 rounded border-2 bg-background overflow-hidden cursor-pointer hover:border-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="relative w-20 h-20 flex-shrink-0 rounded-lg border-2 bg-background cursor-pointer hover:border-primary transition-all hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed z-0 hover:z-30"
                   style={{
                     borderColor: isSelected ? 'rgb(255, 81, 1)' : undefined
                   }}
                 >
+                  <div className="absolute inset-0 rounded-lg overflow-hidden">
                   {imageUrl && (
                     <AssetImage
                       assetId={asset.asset_id}
@@ -346,6 +347,7 @@ export function SceneAssetToggleSection({ scene }: SceneAssetToggleSectionProps)
                       isSelected={isSelected}
                     />
                   )}
+                  </div>
                 </button>
               );
             })}
@@ -355,7 +357,7 @@ export function SceneAssetToggleSection({ scene }: SceneAssetToggleSectionProps)
           {showRightArrow && (
             <button
               onClick={() => scroll('right')}
-              className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-background/90 backdrop-blur-sm border border-border rounded-full w-6 h-6 flex items-center justify-center hover:bg-background shadow-md"
+              className="absolute right-2 top-1/2 -translate-y-1/2 z-20 bg-background/90 backdrop-blur-sm border border-border rounded-full w-7 h-7 flex items-center justify-center hover:bg-background shadow-md"
               aria-label="Scroll right"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -370,9 +372,10 @@ export function SceneAssetToggleSection({ scene }: SceneAssetToggleSectionProps)
   AssetCarousel.displayName = 'AssetCarousel';
 
   return (
-    <div className="flex flex-col gap-3 p-4 bg-muted/50 rounded-lg border min-w-[400px]">
-      <h4 className="text-sm font-semibold text-foreground">Assets</h4>
+    <div className="flex flex-col gap-4 p-4 bg-muted/50 rounded-lg border min-w-[400px] h-full overflow-visible">
+      <h4 className="text-sm font-semibold text-foreground flex-shrink-0">Assets</h4>
       
+      <div className="flex-1 min-h-0 flex flex-col gap-4 justify-center overflow-visible">
       {/* Brand Asset Carousel */}
       {projectBrandAssetIds.length > 0 && (
         <AssetCarousel
@@ -414,6 +417,7 @@ export function SceneAssetToggleSection({ scene }: SceneAssetToggleSectionProps)
           userId={userId}
         />
       )}
+      </div>
     </div>
   );
 }
