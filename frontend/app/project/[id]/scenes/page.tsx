@@ -27,11 +27,12 @@ function ScenesPageContent() {
   const { setCurrentStep, setStoryboardCompleted } = useAppStore();
 
   // Load project data with real-time updates
-  const { project, isLoading: isProjectLoading, error: projectError } = useProject(projectId);
+  const { project: projectFromHook, isLoading: isProjectLoading, error: projectError } = useProject(projectId);
 
   // Load scenes with real-time updates via project API
   const {
     scenes,
+    project: projectFromScenes, // useProjectScenes also returns the project!
     isLoading,
     isSaving,
     isRegeneratingAll,
@@ -46,6 +47,9 @@ function ScenesPageContent() {
     regenerateAllScenes,
     setError,
   } = useProjectScenes(projectId);
+  
+  // Use the project from useProjectScenes since it's more reliable
+  const project = projectFromScenes || projectFromHook;
 
   // Track initialization state to prevent multiple calls
   const [isInitializing, setIsInitializing] = useState(false);
@@ -277,11 +281,19 @@ function ScenesPageContent() {
 
   // Convert Scene objects to StoryboardScene format
   const storyboardScenes = useMemo(() => {
+    console.log('[DEBUG] storyboardScenes transformation:', {
+      project: !!project,
+      scenes: scenes,
+      scenesLength: scenes?.length,
+      projectId: project?.id,
+    });
+    
     if (!project || !scenes || scenes.length === 0) {
+      console.log('[DEBUG] Returning empty array - missing data');
       return [];
     }
 
-    return scenes.map(scene => ({
+    const transformed = scenes.map(scene => ({
       id: scene.id,
       storyboard_id: project.id,
       state: (scene.assets?.videoPath ? 'video' : scene.assets?.thumbnailPath ? 'image' : 'text') as 'text' | 'image' | 'video',
@@ -303,6 +315,9 @@ function ScenesPageContent() {
       use_product_composite: false,
       product_id: null,
     }));
+    
+    console.log('[DEBUG] Transformed scenes:', transformed);
+    return transformed;
   }, [project, scenes]);
 
   // Loading state

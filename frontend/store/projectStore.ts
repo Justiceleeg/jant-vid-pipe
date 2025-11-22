@@ -22,7 +22,7 @@ interface ProjectStoreState {
 
   // Project selection
   selectProject: (id: string) => void;
-  loadProject: (id: string) => void;
+  loadProject: (id: string) => Promise<void>;
 
   // Auto-save
   saveCurrentProject: () => void;
@@ -198,7 +198,9 @@ export const useProjectStore = create<ProjectStoreState>((set, get) => ({
           // If deleting current project, select first available or null
           newCurrentProjectId = filteredProjects.length > 0 ? filteredProjects[0].id : null;
           if (newCurrentProjectId) {
-            get().loadProject(newCurrentProjectId);
+            get().loadProject(newCurrentProjectId).catch(err => 
+              console.error('[ProjectStore] Failed to load project after delete:', err)
+            );
           } else {
             // Reset stores if no projects left
             useAppStore.getState().reset();
@@ -236,7 +238,9 @@ export const useProjectStore = create<ProjectStoreState>((set, get) => ({
         });
 
         // Load the duplicated project
-        get().loadProject(newProjectId);
+        get().loadProject(newProjectId).catch(err => 
+          console.error('[ProjectStore] Failed to load duplicated project:', err)
+        );
 
         return newProjectId;
       },
@@ -249,21 +253,41 @@ export const useProjectStore = create<ProjectStoreState>((set, get) => ({
         set({ currentProjectId: id });
       },
 
-      loadProject: (id) => {
+      loadProject: async (id) => {
         const state = get();
-        const project = state.projects.find(p => p.id === id);
+        let project = state.projects.find(p => p.id === id);
+        
+        // If not found locally, try to fetch from backend
         if (!project) {
-          console.error(`[ProjectStore] Project not found: ${id}`);
+          console.log(`[ProjectStore] Project not in local cache, fetching from backend: ${id}`);
+          try {
+            const fetchedProject = await projectsApi.get(id);
+            console.log('[ProjectStore] Fetched project from backend:', fetchedProject);
+            
+            // Add to local state
+            project = fetchedProject as Project;
+            set({
+              projects: [...state.projects, project],
+            });
+          } catch (error) {
+            console.error(`[ProjectStore] Failed to fetch project from backend: ${id}`, error);
+            return;
+          }
+        }
+
+        // At this point, project is definitely defined
+        if (!project) {
+          console.error(`[ProjectStore] Project still not found: ${id}`);
           return;
         }
 
         console.log('[ProjectStore] Loading project:', { 
           id, 
           name: project.name,
-          hasCreativeBrief: !!project.appState.creativeBrief,
-          moodsCount: project.appState.moods.length,
-          currentStep: project.appState.currentStep,
-          storyboardId: project.storyboardId 
+          hasCreativeBrief: !!(project as any).appState?.creativeBrief || !!(project as any).appStateSnapshot?.creativeBrief,
+          moodsCount: (project as any).appState?.moods?.length || (project as any).appStateSnapshot?.moods?.length || 0,
+          currentStep: (project as any).appState?.currentStep || (project as any).appStateSnapshot?.currentStep,
+          storyboardId: (project as any).storyboardId 
         });
 
         // Set as current project
@@ -301,28 +325,18 @@ export const useProjectStore = create<ProjectStoreState>((set, get) => ({
           
           // Any other fields in the snapshot should also be restored
           // This ensures forward compatibility
-        } else {
+        } else if ((project as any).appState) {
           // Fallback to existing appState format
-          restoreAppState(project.appState);
+          restoreAppState((project as any).appState);
         }
 
         // Load storyboard if storyboardId exists
-        if (project.storyboardId) {
-          console.log('[ProjectStore] Loading storyboard for project:', project.storyboardId);
-          useSceneStore.getState().loadStoryboard(project.storyboardId).catch(err => {
-            // If storyboard not found, clear the reference
-            const errorMessage = err instanceof Error ? err.message : String(err);
-            if (errorMessage.includes('STORYBOARD_NOT_FOUND') || 
-                errorMessage.includes('404') || 
-                errorMessage.includes('not found')) {
-              console.warn('[ProjectStore] Storyboard not found, clearing reference from project');
-              get().updateProject(id, { storyboardId: undefined });
-            } else {
-              console.error('[ProjectStore] Failed to load storyboard:', err);
-            }
-          });
+        if ((project as any).storyboardId) {
+          console.log('[ProjectStore] Loading storyboard for project:', (project as any).storyboardId);
+          // Legacy storyboard loading code - storyboard system has been removed
+          console.log('[ProjectStore] Skipping storyboard load - system deprecated');
         } else {
-          console.log('[ProjectStore] No storyboard associated with this project yet');
+          console.log('[ProjectStore] No storyboard associated with this project');
         }
       },
 

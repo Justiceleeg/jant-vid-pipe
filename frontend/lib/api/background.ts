@@ -4,13 +4,55 @@ import * as assetAPI from './asset';
 const API_PREFIX = 'background';
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
+/**
+ * Get authentication token - similar to other API modules
+ */
+async function getAuthToken(): Promise<string | null> {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  // In development, use demo token
+  if (process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_SKIP_AUTH === 'true') {
+    return 'demo-token';
+  }
+
+  try {
+    const clerk = (window as any).Clerk;
+    if (!clerk) {
+      console.warn('Clerk not initialized');
+      return null;
+    }
+
+    await clerk.load();
+    const session = clerk.session;
+    if (!session) {
+      console.warn('No active Clerk session');
+      return null;
+    }
+
+    const token = await session.getToken();
+    return token;
+  } catch (error) {
+    console.error('Failed to get auth token:', error);
+    // In development, fall back to demo token
+    if (process.env.NODE_ENV === 'development') {
+      return 'demo-token';
+    }
+    return null;
+  }
+}
+
 export async function generateBackgrounds(
   creativeBrief: BackgroundGenerationRequest
 ): Promise<BackgroundGenerationResponse> {
+  const authToken = await getAuthToken();
+  
   const response = await fetch(`${API_URL}/api/background/generate`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      ...(authToken && { Authorization: `Bearer ${authToken}` }),
     },
     body: JSON.stringify(creativeBrief),
   });

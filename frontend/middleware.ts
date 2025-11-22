@@ -23,9 +23,15 @@ const isPublicRoute = createRouteMatcher([
 
 export default clerkMiddleware(async (auth, req) => {
   // DEVELOPMENT BYPASS: Skip auth entirely in development
-  if (process.env.NODE_ENV === 'development') {
-    console.log('[Middleware] Development mode - bypassing auth');
-    return NextResponse.next();
+  // Check both NODE_ENV and a custom flag
+  const isDevelopment = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_SKIP_AUTH === 'true';
+  
+  if (isDevelopment) {
+    console.log('[Middleware] Development mode - bypassing auth for:', req.url);
+    // Set a fake user ID in headers for backend to recognize
+    const response = NextResponse.next();
+    response.headers.set('x-dev-user-id', 'demo-user-dev');
+    return response;
   }
   
   const { userId, redirectToSignIn } = await auth();

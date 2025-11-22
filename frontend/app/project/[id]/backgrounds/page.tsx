@@ -30,12 +30,10 @@ export default function BackgroundsPage() {
   // Load project on mount
   useEffect(() => {
     if (projectId && projectId !== currentProjectId) {
-      try {
-        loadProject(projectId);
-      } catch (error) {
+      loadProject(projectId).catch(error => {
         console.error('Failed to load project:', error);
         router.push('/projects');
-      }
+      });
     }
   }, [projectId, currentProjectId, loadProject, router]);
 

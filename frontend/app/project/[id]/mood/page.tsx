@@ -45,6 +45,7 @@ export default function MoodPage() {
   } = useMoodGeneration();
   
   const [isInitializingScenes, setIsInitializingScenes] = useState(false);
+  const [isGeneratingMoods, setIsGeneratingMoods] = useState(false);
 
   // Track the last brief used for mood generation
   const lastBriefRef = useRef<string | null>(null);
@@ -63,20 +64,32 @@ export default function MoodPage() {
 
   // Auto-generate or regenerate moods when brief changes
   useEffect(() => {
-    if (!creativeBrief || isMoodLoading) return;
+    if (!creativeBrief || isMoodLoading || isGeneratingMoods) return;
 
     const currentBriefHash = getBriefHash(creativeBrief);
     const lastBriefHash = lastBriefRef.current;
 
-    // Regenerate if:
-    // 1. No moods exist (first time)
-    // 2. Brief hash changed (brief was updated)
-    // 3. Moods exist but we don't have a hash (component remounted - regenerate to be safe)
+    // Only regenerate if:
+    // 1. No moods exist (first time) AND we haven't already generated for this brief
+    // 2. Brief hash actually changed (brief was updated)
     const shouldRegenerate = 
-      moods.length === 0 || // No moods yet
-      (currentBriefHash !== lastBriefHash && currentBriefHash !== ''); // Brief changed
+      (moods.length === 0 && lastBriefHash !== currentBriefHash) || // No moods AND brief is new/changed
+      (moods.length > 0 && currentBriefHash !== lastBriefHash && currentBriefHash !== ''); // Has moods but brief changed
 
     if (shouldRegenerate) {
+      console.log('[MoodPage] Generating moods:', {
+        moodsLength: moods.length,
+        currentBriefHash: currentBriefHash?.substring(0, 20) + '...',
+        lastBriefHash: lastBriefHash?.substring(0, 20) + '...',
+        timestamp: new Date().toISOString()
+      });
+      
+      // Set flag to prevent concurrent calls
+      setIsGeneratingMoods(true);
+      
+      // Update the ref BEFORE generating to prevent double-trigger
+      lastBriefRef.current = currentBriefHash;
+      
       const request: MoodGenerationRequest = {
         product_name: creativeBrief.product_name || 'Product',
         target_audience: creativeBrief.target_audience || 'General Audience',
@@ -84,6 +97,7 @@ export default function MoodPage() {
         visual_style_keywords: creativeBrief.visual_style_keywords || [],
         key_messages: creativeBrief.key_messages || [],
       };
+      
       // Clear existing moods and selection when regenerating
       if (moods.length > 0) {
         const { setMoods } = useAppStore.getState();
@@ -91,10 +105,11 @@ export default function MoodPage() {
         useAppStore.setState({ selectedMoodId: null });
       }
 
-      generateMoodsFromBrief(request, projectId);
-      lastBriefRef.current = currentBriefHash;
+      generateMoodsFromBrief(request, projectId).finally(() => {
+        setIsGeneratingMoods(false);
+      });
     }
-  }, [creativeBrief, isMoodLoading, moods.length, generateMoodsFromBrief, projectId]);
+  }, [creativeBrief, isMoodLoading, isGeneratingMoods, moods.length, generateMoodsFromBrief, projectId]);
 
   // Auto-select first mood after moods are generated
   useEffect(() => {
@@ -104,7 +119,10 @@ export default function MoodPage() {
   }, [moods, selectedMoodId, selectMood]);
 
   const handleGenerateMoods = async () => {
-    if (!creativeBrief) return;
+    if (!creativeBrief || isGeneratingMoods) return;
+
+    console.log('[MoodPage] Manual mood regeneration triggered');
+    setIsGeneratingMoods(true);
     
     // Clear existing moods and selection when regenerating
     const { setMoods } = useAppStore.getState();
@@ -119,7 +137,12 @@ export default function MoodPage() {
       key_messages: creativeBrief.key_messages || [],
     };
 
-    await generateMoodsFromBrief(request, projectId);
+    // Update the ref to match current brief
+    lastBriefRef.current = getBriefHash(creativeBrief);
+
+    await generateMoodsFromBrief(request, projectId).finally(() => {
+      setIsGeneratingMoods(false);
+    });
   };
 
   const handleContinue = () => {

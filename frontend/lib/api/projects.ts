@@ -64,6 +64,12 @@ async function getAuthToken(): Promise<string | null> {
     return null;
   }
 
+  // DEVELOPMENT: Use demo token in development mode
+  if (process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_SKIP_AUTH === 'true') {
+    console.log('[API] Using demo token for development');
+    return 'demo-token';
+  }
+
   try {
     // Wait for Clerk to be loaded
     const clerk = (window as any).Clerk;
@@ -92,6 +98,11 @@ async function getAuthToken(): Promise<string | null> {
     return token;
   } catch (error) {
     console.error('Failed to get auth token:', error);
+    // In development, fall back to demo token
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[API] Falling back to demo token after auth error');
+      return 'demo-token';
+    }
     return null;
   }
 }

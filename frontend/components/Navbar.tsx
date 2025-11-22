@@ -24,8 +24,11 @@ export function Navbar() {
   const isProjectPage = pathname?.startsWith("/project/");
   const currentProject = isProjectPage ? getCurrentProject() : null;
 
-  // Show loading skeleton while Clerk is checking auth status
-  if (!isLoaded) {
+  // DEVELOPMENT: Skip auth loading in development
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  
+  // Show loading skeleton while Clerk is checking auth status (unless in development)
+  if (!isDevelopment && !isLoaded) {
     return <AuthLoadingSkeleton />;
   }
 

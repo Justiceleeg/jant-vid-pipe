@@ -341,7 +341,9 @@ export function useProject(projectId?: string): UseProjectReturn {
       currentProjectIdRef.current = projectId;
 
       // Load initial data
-      loadProject(projectId);
+      loadProject(projectId).catch(err => 
+        console.error('[useProject] Failed to load project:', err)
+      );
 
       // Set up real-time subscription for project updates
       subscriptionRef.current = subscribeToProject(projectId, (project) => {
