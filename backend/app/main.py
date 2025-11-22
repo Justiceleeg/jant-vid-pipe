@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.config import settings
-from app.routers import moods, scenes, video, audio, composition, storyboards, upload, nerf, product, admin, brand, character, backgrounds
+from app.routers import moods, scenes, video, audio, composition, storyboards, upload, nerf, product, admin, brand, character, backgrounds, projects
 
 # Configure logging
 logging.basicConfig(
