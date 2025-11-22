@@ -18,6 +18,10 @@ node_modules/
 backend/.env
 frontend/.env.local
 
+# Firebase/GCP Service Account Keys (contains sensitive credentials)
+**/serviceAccountKey*.json
+serviceAccountKey*.json
+
 # Editor directories and files
 .idea
 .vscode

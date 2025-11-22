@@ -39,8 +39,10 @@ export default clerkMiddleware(async (auth, req) => {
   if (isProtectedRoute(req)) {
     // If user is not authenticated, redirect to sign-in
     if (!userId) {
-      // Use redirectToSignIn which handles callback URLs automatically
-      return redirectToSignIn({ returnBackUrl: req.url });
+      // Explicitly redirect to /sign-in with callback URL
+      const signInUrl = new URL("/sign-in", req.url);
+      signInUrl.searchParams.set("callbackUrl", req.url);
+      return NextResponse.redirect(signInUrl);
     }
   }
 

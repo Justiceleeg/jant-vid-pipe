@@ -31,9 +31,14 @@ class Settings(BaseSettings):
     IMAGE_HEIGHT: int = 0  # 0 = auto (720 for dev, 1080 for prod - 16:9 aspect ratio)
     
     # CORS Configuration (comma-separated string)
+    # For local dev: "http://localhost:3000"
+    # For production: "https://your-frontend-app-hash.run.app"
+    # For both: "http://localhost:3000,https://your-frontend-app-hash.run.app"
     CORS_ORIGINS: str = "http://localhost:3000"
     
     # Backend API Base URL (for generating full URLs for external services)
+    # For local dev: "http://localhost:8000"
+    # For Cloud Run: "https://your-backend-app-hash.run.app"
     API_BASE_URL: str = "http://localhost:8000"
     
     # Upload mode configuration

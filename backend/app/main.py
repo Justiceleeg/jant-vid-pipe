@@ -1,9 +1,7 @@
 """FastAPI application entry point."""
 import logging
-from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from app.config import settings
 from app.routers import moods, scenes, video, audio, composition, storyboards, upload, nerf, product, admin, brand, character, backgrounds
 
@@ -28,18 +26,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Ensure uploads directory exists
-uploads_dir = Path("uploads")
-uploads_dir.mkdir(exist_ok=True)
-(uploads_dir / "products").mkdir(exist_ok=True)
-(uploads_dir / "composites").mkdir(exist_ok=True)
-(uploads_dir / "brands").mkdir(exist_ok=True)
-(uploads_dir / "characters").mkdir(exist_ok=True)
-(uploads_dir / "backgrounds").mkdir(exist_ok=True)
-
-# Mount static file serving for uploads
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # Include routers
 app.include_router(storyboards.router)  # Unified Storyboard Interface
