@@ -5,6 +5,7 @@ import type { CreativeBrief } from '@/types/chat.types';
 import type { Mood } from '@/types/mood.types';
 import type { ProductImage } from '@/types/product.types';
 import type { COLMAPState, NeRFTrainingState, RenderingState } from '@/types/nerf.types';
+import type { BackgroundAssetStatus } from '@/types/background.types';
 
 /**
  * Global application state store using Zustand.
@@ -27,6 +28,12 @@ interface AppState {
   selectedMoodId: string | null;
   setMoods: (moods: Mood[]) => void;
   selectMood: (moodId: string) => void;
+
+  // Backgrounds: Background Selection
+  backgroundAssets: BackgroundAssetStatus[];
+  selectedBackgroundIds: string[];
+  setBackgroundAssets: (backgrounds: BackgroundAssetStatus[]) => void;
+  setSelectedBackgroundIds: (ids: string[]) => void;
 
   // Scenes: Storyboard tracking
   // Actual scene state is in sceneStore, this just tracks completion
@@ -86,6 +93,12 @@ export const useAppStore = create<AppState>((set) => ({
   setMoods: (moods) => set({ moods }),
   selectMood: (moodId) => set({ selectedMoodId: moodId }),
 
+  // Backgrounds: Background Selection
+  backgroundAssets: [],
+  selectedBackgroundIds: [],
+  setBackgroundAssets: (backgrounds) => set({ backgroundAssets: backgrounds }),
+  setSelectedBackgroundIds: (ids) => set({ selectedBackgroundIds: ids }),
+
   // Scenes: Storyboard
   storyboardCompleted: false,
   setStoryboardCompleted: (completed) => set({ storyboardCompleted: completed }),
@@ -137,6 +150,8 @@ export const useAppStore = create<AppState>((set) => ({
       creativeBrief: null,
       moods: [],
       selectedMoodId: null,
+      backgroundAssets: [],
+      selectedBackgroundIds: [],
       storyboardCompleted: false,
       uploadedProduct: null,
       colmap: null,

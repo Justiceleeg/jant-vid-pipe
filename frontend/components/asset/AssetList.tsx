@@ -128,30 +128,21 @@ export function AssetList({
           return (
             <div
               key={asset.asset_id}
-              className="border rounded-lg p-4 hover:shadow-md transition-shadow"
+              className="border rounded-lg p-4 hover:shadow-md transition-shadow flex flex-col"
             >
-              <div className="relative w-full aspect-square mb-4 bg-gray-50 rounded">
+              <div className="relative w-full aspect-square mb-3 bg-gray-50 rounded min-h-[300px]">
                 <Image
-                  src={getImageUrl(asset.asset_id, true)}
+                  src={getImageUrl(asset.asset_id, false)}
                   alt={asset.metadata.filename || `${assetType} asset`}
                   fill
                   className="object-contain rounded"
                 />
               </div>
-              <div className="space-y-2">
-                <p className="font-medium text-gray-900 truncate" title={asset.metadata.filename}>
-                  {asset.metadata.filename}
-                </p>
-                <p className="text-sm text-gray-600">
-                  {asset.dimensions.width} × {asset.dimensions.height}px
-                </p>
-                <p className="text-sm text-gray-600">
-                  {formatFileSize(asset.metadata.file_size)} • {asset.format.toUpperCase()}
-                </p>
+              <div className="mt-auto">
                 <button
                   onClick={() => handleDelete(asset.asset_id)}
                   disabled={isDeleting}
-                  className="w-full mt-4 px-4 py-2 text-sm border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full px-4 py-2 text-sm border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isDeleting ? 'Deleting...' : 'Delete'}
                 </button>

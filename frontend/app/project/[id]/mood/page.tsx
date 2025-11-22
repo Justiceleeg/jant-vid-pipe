@@ -95,9 +95,9 @@ export default function MoodPage() {
   };
 
   const handleContinue = () => {
-    // Navigate to scenes page
-    setCurrentStep(STEPS.SCENES);
-    router.push(`/project/${projectId}/scenes`);
+    // Navigate to backgrounds page
+    setCurrentStep(STEPS.BACKGROUNDS);
+    router.push(`/project/${projectId}/backgrounds`);
   };
 
   const handleBack = () => {
