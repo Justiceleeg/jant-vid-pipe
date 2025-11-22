@@ -17,8 +17,8 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     
     # Firebase Configuration (for public image URLs via Firebase Storage)
-    FIREBASE_CREDENTIALS_PATH: str = "backend/serviceAccountKey.json"
-    FIREBASE_STORAGE_BUCKET: str = ""  # Auto-detected from credentials if not set
+    FIREBASE_CREDENTIALS_PATH: str = "serviceAccountKey.json"
+    FIREBASE_STORAGE_BUCKET: str = "jant-vid-pipe-fire.firebasestorage.app"  # Your actual Firebase Storage bucket
     
     # Modal API Keys (required for NeRF processing)
     MODAL_TOKEN_ID: str = ""
