@@ -1000,19 +1000,19 @@ async def generate_image_task(scene_id: str):
                 logger.info(f"  Asset ID: {scene.brand_asset_id}")
                 brand_asset = brand_service.get_brand_asset(scene.brand_asset_id)
                 if brand_asset:
-                    # Try to get public URL, upload to ImgBB if missing
+                    # Try to get public URL, upload to Firebase Storage if missing
                     brand_asset_image_url = brand_asset.public_url
                     if not brand_asset_image_url:
-                        logger.warning(f"  ⚠️  Brand asset missing public_url, attempting ImgBB upload...")
+                        logger.warning(f"  ⚠️  Brand asset missing public_url, attempting Firebase Storage upload...")
                         try:
-                            from ..services.imgbb_service import get_imgbb_service
-                            imgbb_service = get_imgbb_service()
-                            if imgbb_service:
+                            from ..services.firebase_storage_service import get_firebase_storage_service
+                            storage_service = get_firebase_storage_service()
+                            if storage_service:
                                 asset_path = brand_service.get_asset_path(scene.brand_asset_id, thumbnail=False)
                                 if asset_path and asset_path.exists():
-                                    brand_asset_image_url = imgbb_service.upload_image(asset_path)
+                                    brand_asset_image_url = storage_service.upload_image(asset_path, folder="assets/brands")
                                     if brand_asset_image_url:
-                                        logger.info(f"  ✓ Successfully uploaded brand asset to ImgBB: {brand_asset_image_url}")
+                                        logger.info(f"  ✓ Successfully uploaded brand asset to Firebase Storage: {brand_asset_image_url}")
                                         # Update metadata with new public_url
                                         import json
                                         metadata_path = brand_service.upload_dir / scene.brand_asset_id / "metadata.json"
@@ -1023,11 +1023,11 @@ async def generate_image_task(scene_id: str):
                                             with open(metadata_path, 'w') as f:
                                                 json.dump(metadata, f, indent=2)
                                     else:
-                                        logger.warning(f"  ⚠️  ImgBB upload failed, will use localhost URL")
+                                        logger.warning(f"  ⚠️  Firebase Storage upload failed, will use localhost URL")
                                 else:
                                     logger.warning(f"  ⚠️  Brand asset file not found at {asset_path}")
                         except Exception as e:
-                            logger.warning(f"  ⚠️  Error uploading brand asset to ImgBB: {e}")
+                            logger.warning(f"  ⚠️  Error uploading brand asset to Firebase Storage: {e}")
                     
                     # Fall back to localhost URL if still no public URL
                     if not brand_asset_image_url:
@@ -1112,8 +1112,13 @@ async def generate_image_task(scene_id: str):
                 height=1080
             )
         
+        # Persist image to Firebase Storage (common for both paths)
+        print(f"[Image Generation] Persisting scene image to Firebase Storage...")
+        logger.info("Persisting scene image to Firebase Storage...")
+        image_url = replicate_service.persist_replicate_image(image_url, folder="scenes")
+        
         # Update scene with result (common for both paths)
-        # Update scene with image URL
+        # Update scene with image URL (now permanent Firebase URL)
         scene.image_url = image_url
         scene.generation_status.image = "complete"
         scene.state = "image"

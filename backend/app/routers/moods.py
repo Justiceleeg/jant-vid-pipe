@@ -116,7 +116,8 @@ async def generate_moods(
         )
         print(f"Completed generation: {sum(1 for r in image_results if r['success'])}/{len(image_results)} successful")
         
-        # Step 4: Organize images by mood
+        # Step 4: Persist images to Firebase Storage and organize by mood
+        print(f"Persisting {len(image_results)} images to Firebase Storage...")
         moods_with_images = []
         for mood_idx, mood in enumerate(mood_directions):
             # Each mood gets images_per_mood images, so calculate the range
@@ -126,11 +127,18 @@ async def generate_moods(
             # Get the image results for this mood
             mood_image_results = image_results[start_idx:end_idx]
             
-            # Build MoodImage objects
+            # Build MoodImage objects with persisted URLs
             mood_images = []
-            for result in mood_image_results:
+            for idx, result in enumerate(mood_image_results):
+                image_url = result["image_url"] or ""
+                
+                # Persist successful images to Firebase Storage
+                if result["success"] and image_url:
+                    print(f"[Mood {mood_idx + 1}/{len(mood_directions)}] Persisting image {idx + 1}/{len(mood_image_results)}...")
+                    image_url = replicate_svc.persist_replicate_image(image_url, folder="moods")
+                
                 mood_images.append(MoodImage(
-                    url=result["image_url"] or "",
+                    url=image_url,
                     prompt=result["prompt"],
                     success=result["success"],
                     error=result.get("error")
