@@ -201,7 +201,7 @@ export function MoodGallery({
               {isLoading ? (
                 // Loading skeleton - show one large card, always centered
                 <div 
-                  ref={(el) => cardRefs.current[0] = el}
+                  ref={(el) => { cardRefs.current[0] = el; }}
                   className="flex-shrink-0 h-full flex items-center justify-center"
                 >
                   <div className="w-auto h-[400px] sm:h-[500px] max-h-[80vh] rounded-xl border-2 border-border bg-card animate-pulse flex flex-row">

@@ -1168,12 +1168,12 @@ class ReplicateVideoService:
 
     # Production model: ByteDance Seedance 1 Pro Fast (high quality, supports prompts)
     # Fast, high-quality video generation with prompt support for scene descriptions
-    PRODUCTION_VIDEO_MODEL = "bytedance/seedance-1-pro-fast"
+    PRODUCTION_VIDEO_MODEL = "google/veo-3.1"
 
     # Development model: Same as production (Seedance supports prompts)
     # Using Seedance in both dev and prod because it supports prompts
     # This ensures scene descriptions are actually used in video generation
-    DEVELOPMENT_VIDEO_MODEL = "bytedance/seedance-1-pro-fast"
+    DEVELOPMENT_VIDEO_MODEL = "google/veo-3.1"
 
     def __init__(self):
         """Initialize the Replicate video service with API token."""
