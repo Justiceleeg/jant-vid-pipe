@@ -31,15 +31,6 @@ export default function BackgroundsPage() {
 
   // Restore appStore from project's appStateSnapshot
   useEffect(() => {
-    console.log('[BackgroundsPage] Project data:', {
-      projectId,
-      hasProject: !!project,
-      hasAppStateSnapshot: !!project?.appStateSnapshot,
-      hasCreativeBriefInSnapshot: !!project?.appStateSnapshot?.creativeBrief,
-      creativeBriefFromSnapshot: project?.appStateSnapshot?.creativeBrief,
-      currentCreativeBriefInStore: creativeBrief
-    });
-    
     if (project?.appStateSnapshot) {
       console.log('[BackgroundsPage] Restoring appStore from project snapshot');
       const snapshot = project.appStateSnapshot;
@@ -49,8 +40,6 @@ export default function BackgroundsPage() {
       if (snapshot.creativeBrief) {
         console.log('[BackgroundsPage] Restoring creative brief:', snapshot.creativeBrief);
         appStore.setCreativeBrief(snapshot.creativeBrief);
-      } else {
-        console.warn('[BackgroundsPage] No creative brief in snapshot!');
       }
       
       // Restore other relevant state
@@ -58,10 +47,8 @@ export default function BackgroundsPage() {
       if (snapshot.selectedMoodId) appStore.selectMood(snapshot.selectedMoodId);
       if (snapshot.backgroundAssets) appStore.setBackgroundAssets(snapshot.backgroundAssets);
       if (snapshot.selectedBackgroundIds) appStore.setSelectedBackgroundIds(snapshot.selectedBackgroundIds);
-    } else {
-      console.warn('[BackgroundsPage] No appStateSnapshot in project!');
     }
-  }, [project, projectId, creativeBrief]);
+  }, [project]);
 
   // Handle project loading errors
   useEffect(() => {

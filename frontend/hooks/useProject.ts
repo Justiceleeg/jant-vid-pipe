@@ -67,7 +67,7 @@ export function useProject(projectId?: string): UseProjectReturn {
   });
 
   const subscriptionRef = useRef<ProjectSubscription | null>(null);
-  const currentProjectIdRef = useRef<string | undefined>(undefined);
+  const currentProjectIdRef = useRef<string | undefined>(projectId);
 
   // Load a specific project
   const loadProject = useCallback(async (id: string): Promise<Project> => {

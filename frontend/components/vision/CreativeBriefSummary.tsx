@@ -113,7 +113,7 @@ export function CreativeBriefSummary({
                     Emotional Tone
                   </h4>
                   <div className="flex flex-wrap gap-1.5">
-                    {(brief.emotional_tone || []).map((tone, index) => (
+                    {brief.emotional_tone.map((tone, index) => (
                       <span
                         key={index}
                         className={cn(
@@ -134,7 +134,7 @@ export function CreativeBriefSummary({
                     Visual Style
                   </h4>
                   <div className="flex flex-wrap gap-1.5">
-                    {(brief.visual_style_keywords || []).map((keyword, index) => (
+                    {brief.visual_style_keywords.map((keyword, index) => (
                       <span
                         key={index}
                         className={cn(
@@ -156,7 +156,7 @@ export function CreativeBriefSummary({
                   Key Messages
                 </h4>
                 <ul className="space-y-1.5">
-                  {(brief.key_messages || []).map((message, index) => (
+                  {brief.key_messages.map((message, index) => (
                     <li
                       key={index}
                       className="flex items-start gap-2 text-sm text-foreground"
