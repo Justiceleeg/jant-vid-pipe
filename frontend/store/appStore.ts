@@ -22,6 +22,18 @@ interface AppState {
   // Chat: Vision & Creative Brief
   creativeBrief: CreativeBrief | null;
   setCreativeBrief: (brief: CreativeBrief | null) => void;
+  chatMessages: Array<{
+    id: string;
+    role: 'user' | 'assistant' | 'system';
+    content: string;
+    timestamp: Date;
+  }>;
+  setChatMessages: (messages: Array<{
+    id: string;
+    role: 'user' | 'assistant' | 'system';
+    content: string;
+    timestamp: Date;
+  }>) => void;
 
   // Mood: Mood Selection
   moods: Mood[];
@@ -86,6 +98,8 @@ export const useAppStore = create<AppState>((set) => ({
   // Chat: Vision & Creative Brief
   creativeBrief: null,
   setCreativeBrief: (brief) => set({ creativeBrief: brief }),
+  chatMessages: [],
+  setChatMessages: (messages) => set({ chatMessages: messages }),
 
   // Mood: Mood Selection
   moods: [],
@@ -148,6 +162,7 @@ export const useAppStore = create<AppState>((set) => ({
     set({
       currentStep: STEPS.CHAT,
       creativeBrief: null,
+      chatMessages: [],
       moods: [],
       selectedMoodId: null,
       backgroundAssets: [],
