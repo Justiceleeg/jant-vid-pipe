@@ -22,6 +22,12 @@ const isPublicRoute = createRouteMatcher([
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
+  // DEVELOPMENT BYPASS: Skip auth entirely in development
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[Middleware] Development mode - bypassing auth');
+    return NextResponse.next();
+  }
+  
   const { userId, redirectToSignIn } = await auth();
 
   // Skip protection for public routes (sign-in, sign-up)

@@ -115,7 +115,10 @@ export const projectsApi = {
    * Get a single project by ID
    */
   async get(projectId: string): Promise<Project> {
-    return apiRequest<Project>(`/api/projects/${projectId}`);
+    const response = await apiRequest<any>(`/api/projects/${projectId}`);
+    // Backend wraps response in { project: ..., signed_urls: ... }
+    const projectData = response.project || response;
+    return projectData;
   },
 
   /**
@@ -212,13 +215,15 @@ export const projectsApi = {
    * Initialize scenes for a project
    */
   async initializeScenes(projectId: string): Promise<Project> {
-    return apiRequest<Project>(
+    const response = await apiRequest<any>(
       `/api/projects/${projectId}/scenes/initialize`,
       {
         method: 'POST',
         body: JSON.stringify({}),
       }
     );
+    // Backend might wrap response
+    return response.project || response;
   },
 
   /**

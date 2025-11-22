@@ -13,6 +13,12 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { isLoaded, userId } = useAuth();
   const router = useRouter();
 
+  // DEVELOPMENT BYPASS: Skip auth in development
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[AuthGuard] Development mode - bypassing auth check');
+    return <>{children}</>;
+  }
+
   useEffect(() => {
     if (isLoaded && !userId) {
       // User is not authenticated, redirect to sign-in with callback URL

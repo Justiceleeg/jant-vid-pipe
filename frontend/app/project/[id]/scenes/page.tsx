@@ -63,14 +63,15 @@ function ScenesPageContent() {
   useEffect(() => {
     // Only initialize if:
     // 1. Not currently loading project or scenes
-    // 2. Project exists and has creative brief and mood
+    // 2. Project exists (DEVELOPMENT: Skip creative brief/mood check)
     // 3. Scenes array is empty
     // 4. Not already initializing or initialized
     if (!isLoading && 
         !isProjectLoading && 
         project && 
-        project.storyboard?.creativeBrief && 
-        project.storyboard?.selectedMood && 
+        // DEVELOPMENT: Skip prerequisite check for testing
+        // project.storyboard?.creativeBrief && 
+        // project.storyboard?.selectedMood && 
         scenes.length === 0 && 
         !isInitializing && 
         !hasInitialized) {
@@ -366,8 +367,11 @@ function ScenesPageContent() {
     const missingBrief = !project?.storyboard?.creativeBrief;
     const missingMood = !project?.storyboard?.selectedMood;
     
-    // If prerequisites are missing, guide user back
-    if (missingBrief || missingMood) {
+    // DEVELOPMENT: Skip prerequisite check for testing
+    const skipPrerequisiteCheck = process.env.NODE_ENV === 'development';
+    
+    // If prerequisites are missing, guide user back (unless in development)
+    if (!skipPrerequisiteCheck && (missingBrief || missingMood)) {
       return (
         <div className="flex min-h-[calc(100vh-80px)] sm:min-h-[calc(100vh-100px)] items-center justify-center p-3 sm:p-4 md:p-6 lg:p-8 animate-fadeIn">
           <div className="w-full max-w-7xl space-y-3 sm:space-y-4 md:space-y-6 pt-4 sm:pt-6 md:pt-8">

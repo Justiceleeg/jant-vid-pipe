@@ -6,6 +6,7 @@ Extracted from the deprecated storyboard_service.py
 """
 import json
 import uuid
+from datetime import datetime
 from typing import List, Dict, Any, Union, Optional
 from app.config import settings
 from app.models.project_models import Scene
@@ -66,10 +67,12 @@ Key Messages: {', '.join(creative_brief.get('key_messages', [])) if isinstance(c
                 title=f"Scene {i + 1}",
                 description=desc.get("text", f"Scene {i + 1} description"),
                 duration_seconds=float(desc.get("duration", 5.0)),
-                # Store style prompt for future image generation
+                # Create proper Composition object
                 composition={
-                    "style_prompt": desc.get("style_prompt", ""),
-                    "generated_by": "openai" if self.client else "placeholder"
+                    "description": desc.get("text", f"Scene {i + 1} description"),
+                    "styling": desc.get("style_prompt", "modern, professional, cinematic"),
+                    "animation": "fade-in, dynamic movement, smooth transitions",
+                    "generated_at": datetime.utcnow()
                 }
             )
             scenes.append(scene)
