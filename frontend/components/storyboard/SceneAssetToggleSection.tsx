@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import Image from 'next/image';
-import { useAuth } from '@clerk/nextjs';
+import { useFirebaseAuth } from '@/lib/firebase/AuthContext';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useProjectStore } from '@/store/projectStore';
 import { useSceneStore } from '@/store/sceneStore';
@@ -19,7 +19,7 @@ interface SceneAssetToggleSectionProps {
 }
 
 export function SceneAssetToggleSection({ scene }: SceneAssetToggleSectionProps) {
-  const { userId } = useAuth();
+  const { userId } = useFirebaseAuth();
   const { getCurrentProject } = useProjectStore();
   const { enableBrandAsset, disableBrandAsset, enableCharacterAsset, disableCharacterAsset, enableBackgroundAsset, disableBackgroundAsset } = useSceneStore();
   
