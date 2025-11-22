@@ -181,6 +181,8 @@ class FirestoreService:
             updates['name'] = request.name
         if request.description is not None:
             updates['description'] = request.description
+        if request.storyboard is not None:
+            updates['storyboard'] = request.storyboard.model_dump()
 
         # Update in Firestore
         self.projects_collection.document(project_id).update(updates)

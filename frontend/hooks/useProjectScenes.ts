@@ -39,6 +39,7 @@ interface UpdateSceneRequest {
 
 interface UseProjectScenesState {
   scenes: Scene[];
+  project: Project | null;
   isLoading: boolean;
   isSaving: boolean;
   isRegeneratingAll: boolean;
@@ -69,6 +70,7 @@ interface UseProjectScenesReturn extends UseProjectScenesState {
 export function useProjectScenes(projectId: string): UseProjectScenesReturn {
   const [state, setState] = useState<UseProjectScenesState>({
     scenes: [],
+    project: null,
     isLoading: true,
     isSaving: false,
     isRegeneratingAll: false,
@@ -96,6 +98,7 @@ export function useProjectScenes(projectId: string): UseProjectScenesReturn {
       
       setState(prev => ({
         ...prev,
+        project: project,
         scenes: project.scenes || [],
         isLoading: false,
       }));

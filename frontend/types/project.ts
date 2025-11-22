@@ -50,8 +50,8 @@ export interface SelectedMood {
 export interface EmbeddedStoryboard {
   id: string;
   title: string;
-  creativeBrief: CreativeBrief;
-  selectedMood: SelectedMood;
+  creativeBrief?: CreativeBrief;
+  selectedMood?: SelectedMood;
 }
 
 export interface ActiveJob {
@@ -125,6 +125,7 @@ export interface CreateProjectRequest {
 export interface UpdateProjectRequest {
   name?: string;
   description?: string;
+  storyboard?: EmbeddedStoryboard;
 }
 
 export interface AddSceneRequest {

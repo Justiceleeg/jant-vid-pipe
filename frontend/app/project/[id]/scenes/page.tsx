@@ -1,10 +1,9 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { StoryboardCarousel } from '@/components/storyboard';
 import { useProjectScenes } from '@/hooks/useProjectScenes';
-import { useProject } from '@/hooks/useProject';
 import { useAppStore } from '@/store/appStore';
 import { ToastProvider, useToast } from '@/components/ui/Toast';
 import { ErrorAlert } from '@/components/ui/ErrorAlert';
@@ -25,11 +24,10 @@ function ScenesPageContent() {
   // App-level state
   const { setCurrentStep, setStoryboardCompleted } = useAppStore();
 
-  // Load project data with real-time updates
-  const { project, isLoading: isProjectLoading, error: projectError } = useProject(projectId);
-
   // Load scenes with real-time updates via project API
+  // Note: useProjectScenes now also returns the project, so we don't need a separate useProject call
   const {
+    project,
     scenes,
     isLoading,
     isSaving,
@@ -52,15 +50,17 @@ function ScenesPageContent() {
     console.log('[ScenesPage] Scenes count:', scenes.length);
     console.log('[ScenesPage] isLoading:', isLoading);
     console.log('[ScenesPage] error:', error);
-  }, [scenes, isLoading, error]);
+    console.log('[ScenesPage] project exists:', !!project);
+    console.log('[ScenesPage] project value:', project);
+  }, [scenes, isLoading, error, project]);
 
   // Handle project loading errors
   useEffect(() => {
-    if (projectError) {
-      console.error('[ScenesPage] Failed to load project:', projectError);
-      router.push('/projects');
+    if (error && !project && !isLoading) {
+      console.error('[ScenesPage] Failed to load project:', error);
+      // Don't redirect immediately - give it time to load
     }
-  }, [projectError, router]);
+  }, [error, project, isLoading]);
 
   // Handle operations with toast feedback
   const handleApproveText = async (sceneId: string) => {
@@ -215,8 +215,76 @@ function ScenesPageContent() {
     router.push(`/project/${projectId}/final`);
   };
 
+  // Convert project scenes to storyboard format for carousel component using useMemo
+  // MUST be declared before any early returns that use these values
+  const storyboardForCarousel = useMemo(() => {
+    console.log('[ScenesPage useMemo] storyboardForCarousel recalculating - project:', !!project, 'scenes:', scenes.length);
+    if (!project) {
+      console.log('[ScenesPage useMemo] No project, returning null');
+      return null;
+    }
+    
+    const result = {
+      storyboard_id: project.id,
+      title: project.storyboard?.title || project.name,
+      scene_order: scenes.map(s => s.id),
+      created_at: project.createdAt,
+      updated_at: project.updatedAt,
+      session_id: project.userId, // Legacy field
+      user_id: project.userId,
+      creative_brief: project.storyboard?.creativeBrief || {},
+      selected_mood: project.storyboard?.selectedMood || {},
+    };
+    console.log('[ScenesPage useMemo] storyboardForCarousel created:', result);
+    return result;
+  }, [project, scenes]);
+
+  // Convert Scene objects to StoryboardScene format using useMemo
+  const storyboardScenes = useMemo(() => {
+    console.log('[ScenesPage useMemo] storyboardScenes recalculating - project:', !!project, 'scenes:', scenes.length);
+    
+    if (!project || !scenes || scenes.length === 0) {
+      console.log('[ScenesPage useMemo] Cannot create storyboardScenes - project:', !!project, 'scenes:', scenes?.length || 0);
+      return [];
+    }
+
+    console.log('[ScenesPage useMemo] Starting conversion of', scenes.length, 'scenes');
+    const converted = scenes.map(scene => ({
+      id: scene.id,
+      storyboard_id: project.id,
+      state: (scene.assets?.videoPath ? 'video' : scene.assets?.thumbnailPath ? 'image' : 'text') as 'text' | 'image' | 'video',
+      text: scene.description || 'No description',
+      style_prompt: '', // Not stored in Scene model
+      image_url: scene.assets?.thumbnailPath || null,
+      seed_image_urls: scene.assets?.thumbnailPath ? [scene.assets.thumbnailPath] : null,
+      video_url: scene.assets?.videoPath || null,
+      video_duration: scene.durationSeconds || 5,
+      generation_status: {
+        image: scene.activeJob?.type === 'video' && scene.activeJob?.status === 'processing' ? 'generating' : 
+               scene.assets?.thumbnailPath ? 'complete' : 'pending',
+        video: scene.activeJob?.type === 'video' && scene.activeJob?.status === 'processing' ? 'generating' :
+               scene.assets?.videoPath ? 'complete' : 'pending',
+      },
+      error_message: scene.activeJob?.errorMessage || null,
+      created_at: project.createdAt, // Scene doesn't have its own timestamps
+      updated_at: project.updatedAt,
+      use_product_composite: false,
+      product_id: null,
+    }));
+
+    console.log('[ScenesPage] storyboardScenes created:', converted);
+    console.log('[ScenesPage] storyboardScenes count:', converted.length);
+    return converted;
+  }, [project, scenes]);
+
+  // Debug logging
+  useEffect(() => {
+    console.log('[ScenesPage] storyboardForCarousel:', storyboardForCarousel);
+    console.log('[ScenesPage] storyboardScenes final:', storyboardScenes);
+  }, [storyboardForCarousel, storyboardScenes]);
+
   // Loading state
-  if (isLoading || isProjectLoading) {
+  if (isLoading) {
     return (
       <div className="flex min-h-[calc(100vh-80px)] sm:min-h-[calc(100vh-100px)] items-center justify-center p-3 sm:p-4 md:p-6 lg:p-8 animate-fadeIn">
         <div className="w-full max-w-7xl space-y-3 sm:space-y-4 md:space-y-6 pt-4 sm:pt-6 md:pt-8">
@@ -266,8 +334,8 @@ function ScenesPageContent() {
     );
   }
 
-  // No scenes state
-  if (!project || scenes.length === 0) {
+  // No scenes state - check storyboardScenes instead of scenes
+  if (!project || !storyboardForCarousel || storyboardScenes.length === 0) {
     return (
       <div className="flex min-h-[calc(100vh-80px)] sm:min-h-[calc(100vh-100px)] items-center justify-center p-3 sm:p-4 md:p-6 lg:p-8 animate-fadeIn">
         <div className="w-full max-w-7xl space-y-3 sm:space-y-4 md:space-y-6 pt-4 sm:pt-6 md:pt-8">
@@ -302,43 +370,6 @@ function ScenesPageContent() {
       </div>
     );
   }
-
-  // Convert project scenes to storyboard format for carousel component
-  const storyboardForCarousel = {
-    storyboard_id: project.id,
-    title: project.storyboard?.title || project.name,
-    scene_order: scenes.map(s => s.id),
-    created_at: project.createdAt,
-    updated_at: project.updatedAt,
-    session_id: project.userId, // Legacy field
-    user_id: project.userId,
-    creative_brief: project.storyboard?.creativeBrief || {},
-    selected_mood: project.storyboard?.selectedMood || {},
-  };
-
-  // Convert Scene objects to StoryboardScene format
-  const storyboardScenes = scenes.map(scene => ({
-    id: scene.id,
-    storyboard_id: project.id,
-    state: (scene.assets?.videoPath ? 'video' : scene.assets?.thumbnailPath ? 'image' : 'text') as 'text' | 'image' | 'video',
-    text: scene.description,
-    style_prompt: '', // Not stored in Scene model
-    image_url: scene.assets?.thumbnailPath || null,
-    seed_image_urls: scene.assets?.thumbnailPath ? [scene.assets.thumbnailPath] : null,
-    video_url: scene.assets?.videoPath || null,
-    video_duration: scene.durationSeconds,
-    generation_status: {
-      image: scene.activeJob?.type === 'video' && scene.activeJob?.status === 'processing' ? 'generating' : 
-             scene.assets?.thumbnailPath ? 'complete' : 'pending',
-      video: scene.activeJob?.type === 'video' && scene.activeJob?.status === 'processing' ? 'generating' :
-             scene.assets?.videoPath ? 'complete' : 'pending',
-    },
-    error_message: scene.activeJob?.errorMessage || null,
-    created_at: project.createdAt, // Scene doesn't have its own timestamps
-    updated_at: project.updatedAt,
-    use_product_composite: false,
-    product_id: null,
-  }));
 
   return (
     <div className="flex min-h-[calc(100vh-80px)] sm:min-h-[calc(100vh-100px)] items-center justify-center p-3 sm:p-4 md:p-6 lg:p-8 animate-fadeIn">

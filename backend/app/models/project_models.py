@@ -157,6 +157,7 @@ class UpdateProjectRequest(BaseModel):
     """Request model for updating project metadata."""
     name: Optional[str] = None
     description: Optional[str] = None
+    storyboard: Optional[EmbeddedStoryboard] = None
 
 
 class UpdateSceneRequest(BaseModel):
