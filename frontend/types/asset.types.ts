@@ -7,8 +7,8 @@ export interface Asset {
   filename: string;
   url: string;
   thumbnail_url: string;
-  public_url?: string | null; // Public URL from ImgBB (for external APIs)
-  public_thumbnail_url?: string | null; // Public thumbnail URL from ImgBB
+  public_url?: string | null; // Public URL from Firebase Storage (for external APIs)
+  public_thumbnail_url?: string | null; // Public thumbnail URL from Firebase Storage
   size: number;
   dimensions: {
     width: number;
@@ -26,8 +26,8 @@ export interface AssetStatus {
   status: 'active' | 'deleted';
   url: string;
   thumbnail_url: string;
-  public_url?: string | null; // Public URL from ImgBB (for external APIs)
-  public_thumbnail_url?: string | null; // Public thumbnail URL from ImgBB
+  public_url?: string | null; // Public URL from Firebase Storage (for external APIs)
+  public_thumbnail_url?: string | null; // Public thumbnail URL from Firebase Storage
   dimensions: {
     width: number;
     height: number;

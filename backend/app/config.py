@@ -15,7 +15,10 @@ class Settings(BaseSettings):
     REPLICATE_API_TOKEN: str = ""
     REPLICATE_API_KEY: str = ""  # Alias for REPLICATE_API_TOKEN (some users might use this)
     OPENAI_API_KEY: str = ""
-    IMGBB_API_KEY: str = ""  # ImgBB API key for public image URLs (get free at https://api.imgbb.com/)
+    
+    # Firebase Configuration (for public image URLs via Firebase Storage)
+    FIREBASE_CREDENTIALS_PATH: str = "serviceAccountKey.json"
+    FIREBASE_STORAGE_BUCKET: str = ""  # Set via FIREBASE_STORAGE_BUCKET env var or auto-detected
     
     # Modal API Keys (required for NeRF processing)
     MODAL_TOKEN_ID: str = ""

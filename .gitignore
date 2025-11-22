@@ -18,6 +18,10 @@ node_modules/
 backend/.env
 frontend/.env.local
 
+# Firebase credentials (contains private keys - NEVER commit!)
+**/serviceAccountKey.json
+serviceAccountKey.json
+
 # Editor directories and files
 .idea
 .vscode
@@ -53,3 +57,6 @@ ENV/
 
 # Upload directories
 backend/uploads
+salvage_plan/
+tom_planning/
+.claude/

@@ -286,6 +286,78 @@ class ReplicateImageService:
         prompt = ", ".join(components)
         return prompt
 
+    def persist_replicate_image(self, replicate_url: str, folder: str = "generated") -> str:
+        """
+        Download a Replicate-generated image and upload to Firebase Storage for permanent URL.
+        
+        Args:
+            replicate_url: Temporary Replicate image URL (expires in 1 hour)
+            folder: Folder path in Firebase Storage (e.g., "moods", "scenes")
+            
+        Returns:
+            Permanent Firebase Storage URL, or original URL if persistence fails
+        """
+        if not replicate_url:
+            logger.warning("persist_replicate_image: Empty URL provided")
+            return replicate_url
+        
+        try:
+            from app.services.firebase_storage_service import get_firebase_storage_service
+            
+            # Get Firebase Storage service
+            storage_service = get_firebase_storage_service()
+            if not storage_service:
+                logger.info(f"Firebase Storage not configured, using temporary Replicate URL")
+                return replicate_url
+            
+            # Download image from Replicate
+            print(f"[Image Persistence] Downloading image from Replicate...")
+            response = requests.get(replicate_url, timeout=30)
+            response.raise_for_status()
+            
+            # Save to temporary file
+            temp_dir = Path(tempfile.gettempdir()) / "replicate_persist"
+            temp_dir.mkdir(exist_ok=True)
+            
+            # Determine file extension from content-type or URL
+            content_type = response.headers.get('content-type', 'image/png')
+            if 'jpeg' in content_type or 'jpg' in content_type:
+                ext = '.jpg'
+            elif 'webp' in content_type:
+                ext = '.webp'
+            else:
+                ext = '.png'
+            
+            temp_filename = f"replicate_{uuid.uuid4()}{ext}"
+            temp_path = temp_dir / temp_filename
+            
+            with open(temp_path, 'wb') as f:
+                f.write(response.content)
+            
+            print(f"[Image Persistence] Uploading to Firebase Storage in folder '{folder}'...")
+            
+            # Upload to Firebase Storage
+            firebase_url = storage_service.upload_image(temp_path, folder=folder)
+            
+            # Clean up temp file
+            try:
+                temp_path.unlink()
+            except Exception:
+                pass
+            
+            if firebase_url:
+                print(f"[Image Persistence] ✓ Successfully persisted image to Firebase Storage")
+                logger.info(f"Persisted Replicate image to Firebase: {firebase_url}")
+                return firebase_url
+            else:
+                logger.warning("Firebase upload failed, returning original Replicate URL")
+                return replicate_url
+                
+        except Exception as e:
+            logger.warning(f"Failed to persist Replicate image: {e}. Using original URL.")
+            print(f"[Image Persistence] ⚠️  Persistence failed: {e}")
+            return replicate_url
+
     def build_scene_seed_prompt(
         self,
         scene_description: str,
@@ -526,7 +598,24 @@ class ReplicateImageService:
         final_path = uploads_dir / composite_filename
         composited.save(final_path, 'PNG')
         
-        # Return URL (assumes FastAPI serves /uploads/ statically)
+        # Upload to Firebase Storage for permanent public URL
+        print(f"[Product Composite] Uploading composite to Firebase Storage...")
+        try:
+            from app.services.firebase_storage_service import get_firebase_storage_service
+            storage_service = get_firebase_storage_service()
+            
+            if storage_service:
+                firebase_url = storage_service.upload_image(final_path, folder="composites")
+                if firebase_url:
+                    print(f"[Product Composite] ✓ Composite uploaded to Firebase Storage")
+                    logger.info(f"Composite uploaded to Firebase Storage: {firebase_url}")
+                    return firebase_url
+        except Exception as e:
+            logger.warning(f"Failed to upload composite to Firebase Storage: {e}")
+            print(f"[Product Composite] ⚠️  Firebase upload failed: {e}")
+        
+        # Fallback to local URL if Firebase upload fails or not configured
+        print(f"[Product Composite] Using local URL (Firebase not available)")
         return f"/uploads/composites/{composite_filename}"
     
     def _composite_product_centered(

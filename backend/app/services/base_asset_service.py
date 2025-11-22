@@ -219,43 +219,43 @@ class BaseAssetService(Generic[T, S]):
                 thumb = rgb_thumb
             thumb.save(thumb_path, 'JPEG', quality=90, optimize=True)
         
-        # Upload to ImgBB for public URLs (for external API access)
+        # Upload to Firebase Storage for public URLs (for external API access)
         public_url = None
         public_thumbnail_url = None
         
         try:
-            from ..services.imgbb_service import get_imgbb_service
-            print(f"[Asset Upload] Checking ImgBB configuration...")
-            imgbb_service = get_imgbb_service()
+            from ..services.firebase_storage_service import get_firebase_storage_service
+            print(f"[Asset Upload] Checking Firebase Storage configuration...")
+            storage_service = get_firebase_storage_service()
             
-            if imgbb_service:
+            if storage_service:
                 # Upload original image
-                print(f"[Asset Upload] Uploading {filename} to ImgBB...")
-                logger.info(f"Uploading {filename} to ImgBB...")
-                public_url = imgbb_service.upload_image(original_path)
+                print(f"[Asset Upload] Uploading {filename} to Firebase Storage...")
+                logger.info(f"Uploading {filename} to Firebase Storage...")
+                public_url = storage_service.upload_image(original_path, folder=f"assets/{self.api_prefix}")
                 
                 if public_url:
-                    print(f"[Asset Upload] ✓ Successfully uploaded to ImgBB: {public_url}")
-                    logger.info(f"Successfully uploaded to ImgBB: {public_url}")
+                    print(f"[Asset Upload] ✓ Successfully uploaded to Firebase Storage: {public_url}")
+                    logger.info(f"Successfully uploaded to Firebase Storage: {public_url}")
                     
                     # Upload thumbnail if original succeeded
-                    print(f"[Asset Upload] Uploading thumbnail for {filename} to ImgBB...")
-                    logger.info(f"Uploading thumbnail for {filename} to ImgBB...")
-                    public_thumbnail_url = imgbb_service.upload_image(thumb_path)
+                    print(f"[Asset Upload] Uploading thumbnail for {filename} to Firebase Storage...")
+                    logger.info(f"Uploading thumbnail for {filename} to Firebase Storage...")
+                    public_thumbnail_url = storage_service.upload_image(thumb_path, folder=f"assets/{self.api_prefix}/thumbnails")
                     
                     if public_thumbnail_url:
-                        print(f"[Asset Upload] ✓ Successfully uploaded thumbnail to ImgBB: {public_thumbnail_url}")
-                        logger.info(f"Successfully uploaded thumbnail to ImgBB: {public_thumbnail_url}")
+                        print(f"[Asset Upload] ✓ Successfully uploaded thumbnail to Firebase Storage: {public_thumbnail_url}")
+                        logger.info(f"Successfully uploaded thumbnail to Firebase Storage: {public_thumbnail_url}")
                     else:
-                        print(f"[Asset Upload] ⚠️  Thumbnail upload to ImgBB failed")
+                        print(f"[Asset Upload] ⚠️  Thumbnail upload to Firebase Storage failed")
                 else:
-                    print(f"[Asset Upload] ⚠️  Failed to upload to ImgBB (no URL returned)")
+                    print(f"[Asset Upload] ⚠️  Failed to upload to Firebase Storage (no URL returned)")
             else:
-                print(f"[Asset Upload] ⚠️  ImgBB service not configured (IMGBB_API_KEY not set). Skipping public URL upload.")
-                logger.info("ImgBB service not configured, skipping public URL upload")
+                print(f"[Asset Upload] ⚠️  Firebase Storage service not configured. Skipping public URL upload.")
+                logger.info("Firebase Storage service not configured, skipping public URL upload")
         except Exception as e:
-            print(f"[Asset Upload] ❌ Error uploading to ImgBB: {e}")
-            logger.warning(f"Failed to upload to ImgBB: {e}. Continuing with local URLs.", exc_info=True)
+            print(f"[Asset Upload] ❌ Error uploading to Firebase Storage: {e}")
+            logger.warning(f"Failed to upload to Firebase Storage: {e}. Continuing with local URLs.", exc_info=True)
         
         # Extract metadata
         width, height = img.size
@@ -272,8 +272,8 @@ class BaseAssetService(Generic[T, S]):
             "file_size": file_size,  # bytes
             "has_alpha": has_alpha,  # boolean
             "uploaded_at": uploaded_at,  # ISO 8601 format
-            "public_url": public_url,  # Public URL from ImgBB
-            "public_thumbnail_url": public_thumbnail_url,  # Public thumbnail URL from ImgBB
+            "public_url": public_url,  # Public URL from Firebase Storage
+            "public_thumbnail_url": public_thumbnail_url,  # Public thumbnail URL from Firebase Storage
             "user_id": user_id  # User ID for asset isolation
         }
         
@@ -318,8 +318,8 @@ class BaseAssetService(Generic[T, S]):
             status="active",
             url=f"/api/{self.api_prefix}/{asset_id}/image",
             thumbnail_url=f"/api/{self.api_prefix}/{asset_id}/thumbnail",
-            public_url=metadata.get("public_url"),  # Public URL from ImgBB
-            public_thumbnail_url=metadata.get("public_thumbnail_url"),  # Public thumbnail URL from ImgBB
+            public_url=metadata.get("public_url"),  # Public URL from Firebase Storage
+            public_thumbnail_url=metadata.get("public_thumbnail_url"),  # Public thumbnail URL from Firebase Storage
             dimensions=ImageDimensions(**metadata["dimensions"]),
             format=metadata["format"],
             has_alpha=metadata["has_alpha"],
