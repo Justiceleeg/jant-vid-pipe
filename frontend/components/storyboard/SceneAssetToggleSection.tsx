@@ -377,7 +377,7 @@ export function SceneAssetToggleSection({ scene }: SceneAssetToggleSectionProps)
       {projectBrandAssetIds.length > 0 && (
         <AssetCarousel
           assets={brandAssets}
-          selectedId={scene.brand_asset_id}
+          selectedId={scene.brand_asset_id ?? null}
           onToggle={handleBrandToggle}
           getImageUrl={getBrandAssetImageUrl}
           isLoading={isLoadingBrand}
@@ -391,7 +391,7 @@ export function SceneAssetToggleSection({ scene }: SceneAssetToggleSectionProps)
       {projectCharacterAssetIds.length > 0 && (
         <AssetCarousel
           assets={characterAssets}
-          selectedId={scene.character_asset_id}
+          selectedId={scene.character_asset_id ?? null}
           onToggle={handleCharacterToggle}
           getImageUrl={getCharacterAssetImageUrl}
           isLoading={isLoadingCharacter}
@@ -405,7 +405,7 @@ export function SceneAssetToggleSection({ scene }: SceneAssetToggleSectionProps)
       {projectBackgroundAssetIds.length > 0 && (
         <AssetCarousel
           assets={backgroundAssets}
-          selectedId={scene.background_asset_id}
+          selectedId={scene.background_asset_id ?? null}
           onToggle={handleBackgroundToggle}
           getImageUrl={getBackgroundImageUrl}
           isLoading={isLoadingBackground}
