@@ -123,7 +123,7 @@ export function StoryboardCarousel({
   }
 
   return (
-    <div className="h-full flex flex-col max-w-7xl mx-auto px-4 sm:px-6">
+    <div className="h-full flex flex-col w-full px-4 sm:px-6">
       {/* Top bar with timeline, audio - compact */}
       <div className="flex-shrink-0 py-2 border-b border-border">
         <div className="flex items-center justify-between gap-3">
@@ -202,8 +202,8 @@ export function StoryboardCarousel({
         </div>
       </div>
 
-      {/* Carousel Container - fills remaining space */}
-      <div className="flex-1 min-h-0 overflow-hidden py-2">
+      {/* Carousel Container - fills remaining space, no scroll */}
+      <div className="flex-1 min-h-0 overflow-hidden">
         <div className="h-full relative">
           <div
             className="flex h-full transition-transform duration-300 ease-in-out"
@@ -216,7 +216,7 @@ export function StoryboardCarousel({
               return (
                 <div
                   key={scene.id}
-                  className="w-full h-full flex-shrink-0 overflow-y-auto"
+                  className="w-full h-full flex-shrink-0"
                   style={{ minWidth: '100%' }}
                 >
                   <SceneCardNew
