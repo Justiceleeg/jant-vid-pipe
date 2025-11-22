@@ -26,6 +26,7 @@ from ..models.project_models import (
 )
 from ..services.firestore_service import get_firestore_service
 from ..services.cloud_functions import CloudFunctionTrigger
+from ..services.scene_generation_service import get_scene_generation_service
 from ..middleware.clerk_auth import get_current_user_id, get_optional_user_id
 
 # Set up logging
@@ -325,20 +326,20 @@ async def initialize_scenes(
             selected_mood = getattr(project.storyboard, 'selected_mood', None)
         logger.info(f"[initialize_scenes] Creative brief exists: {creative_brief is not None}")
         
-        # TODO: Call OpenAI to generate scene descriptions
-        # For now, create placeholder scenes with basic structure
-        logger.info(f"[initialize_scenes] Creating scene objects...")
-        scenes = []
-        for i in range(6):
-            scene = Scene(
-                id=str(uuid.uuid4()),
-                scene_number=i + 1,
-                title=f"Scene {i + 1}",
-                description=f"AI-generated description for scene {i + 1}",
-                duration_seconds=5.0
-            )
-            scenes.append(scene)
-        logger.info(f"[initialize_scenes] Created {len(scenes)} scene objects")
+        # Use AI to generate scene descriptions
+        logger.info(f"[initialize_scenes] Generating scenes with AI...")
+        scene_service = get_scene_generation_service()
+        
+        # Convert Pydantic models to dicts if needed
+        creative_brief_dict = creative_brief.dict() if creative_brief and hasattr(creative_brief, 'dict') else creative_brief
+        selected_mood_dict = selected_mood.dict() if selected_mood and hasattr(selected_mood, 'dict') else selected_mood
+        
+        scenes = await scene_service.generate_scenes(
+            creative_brief=creative_brief_dict,
+            selected_mood=selected_mood_dict,
+            num_scenes=6
+        )
+        logger.info(f"[initialize_scenes] Generated {len(scenes)} scene objects with AI")
         
         # Add scenes to project
         logger.info(f"[initialize_scenes] Adding scenes to project...")
@@ -582,27 +583,22 @@ async def regenerate_scene_text(
                 detail="Creative brief and mood are required for text regeneration"
             )
         
-        # TODO: Call OpenAI to regenerate text
-        # For now, use the existing storyboard service as a quick solution
-        from app.services.storyboard_service import storyboard_service
+        # Use scene generation service to regenerate text
+        scene_service = get_scene_generation_service()
         
-        # Generate new text (reusing existing logic)
-        new_text = f"Regenerated text for scene {scene.scene_number}"
+        # Convert to dicts if needed
+        creative_brief_dict = creative_brief.dict() if hasattr(creative_brief, 'dict') else creative_brief
+        selected_mood_dict = selected_mood.dict() if hasattr(selected_mood, 'dict') else selected_mood
         
-        # If OpenAI is configured, try to generate real text
-        if storyboard_service.client:
-            try:
-                # Generate a single scene
-                scenes_data = await storyboard_service.generate_scene_texts(
-                    creative_brief=creative_brief.dict() if hasattr(creative_brief, 'dict') else creative_brief,
-                    selected_mood=selected_mood.dict() if hasattr(selected_mood, 'dict') else selected_mood,
-                    num_scenes=1
-                )
-                if scenes_data and len(scenes_data) > 0:
-                    new_text = scenes_data[0].get("text", new_text)
-            except Exception as e:
-                logger.warning(f"Failed to generate text with OpenAI: {e}")
-                # Continue with placeholder text
+        # Generate new text
+        regenerated = await scene_service.regenerate_scene_text(
+            scene_number=scene.scene_number,
+            creative_brief=creative_brief_dict,
+            selected_mood=selected_mood_dict,
+            previous_text=scene.description
+        )
+        
+        new_text = regenerated.get("text", f"Regenerated text for scene {scene.scene_number}")
         
         # Update scene text
         update_data = {
