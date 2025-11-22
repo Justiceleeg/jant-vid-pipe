@@ -136,10 +136,11 @@ export function useProjectScenes(projectId: string): UseProjectScenesReturn {
   const regenerateText = useCallback(async (sceneId: string) => {
     setState(prev => ({ ...prev, isSaving: true, error: null }));
     try {
-      // TODO: Add regenerate text endpoint to backend
-      // For now, this is a placeholder
-      console.log('[useProjectScenes] regenerateText not yet implemented:', sceneId);
-
+      const updatedScene = await projectsApi.regenerateText(projectId, sceneId);
+      console.log('[useProjectScenes] Text regenerated for scene:', sceneId);
+      
+      // The real-time subscription will update the scene automatically
+      // but we can optimistically update if needed
       setState(prev => ({ ...prev, isSaving: false }));
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to regenerate text';
@@ -183,9 +184,10 @@ export function useProjectScenes(projectId: string): UseProjectScenesReturn {
   const regenerateImage = useCallback(async (sceneId: string) => {
     setState(prev => ({ ...prev, isSaving: true, error: null }));
     try {
-      // TODO: Add regenerate image endpoint to backend
-      console.log('[useProjectScenes] regenerateImage not yet implemented:', sceneId);
-
+      const response = await projectsApi.regenerateImage(projectId, sceneId);
+      console.log('[useProjectScenes] Image regeneration started for scene:', sceneId, 'Job ID:', response.jobId);
+      
+      // The real-time subscription will update the scene when generation completes
       setState(prev => ({ ...prev, isSaving: false }));
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to regenerate image';

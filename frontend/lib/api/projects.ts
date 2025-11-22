@@ -220,6 +220,32 @@ export const projectsApi = {
       }
     );
   },
+
+  /**
+   * Regenerate text for a specific scene
+   */
+  async regenerateText(projectId: string, sceneId: string): Promise<Scene> {
+    return apiRequest<Scene>(
+      `/api/projects/${projectId}/scenes/${sceneId}/regenerate-text`,
+      {
+        method: 'POST',
+        body: JSON.stringify({}),
+      }
+    );
+  },
+
+  /**
+   * Regenerate image for a specific scene
+   */
+  async regenerateImage(projectId: string, sceneId: string): Promise<GenerateVideoResponse> {
+    return apiRequest<GenerateVideoResponse>(
+      `/api/projects/${projectId}/scenes/${sceneId}/regenerate-image`,
+      {
+        method: 'POST',
+        body: JSON.stringify({}),
+      }
+    );
+  },
 };
 
 /**

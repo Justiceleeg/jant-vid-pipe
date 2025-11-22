@@ -109,6 +109,9 @@ export interface Project {
   storyboard: EmbeddedStoryboard;
   scenes: Scene[];
   stats: ProjectStats;
+  // Option 3: Full app state snapshot for perfect sync
+  appStateSnapshot?: Record<string, any>;
+  snapshotVersion?: number;
 }
 
 /**
@@ -126,6 +129,7 @@ export interface UpdateProjectRequest {
   name?: string;
   description?: string;
   storyboard?: EmbeddedStoryboard;
+  appStateSnapshot?: Record<string, any>;
 }
 
 export interface AddSceneRequest {

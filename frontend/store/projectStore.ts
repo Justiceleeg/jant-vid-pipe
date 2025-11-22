@@ -143,13 +143,13 @@ export const useProjectStore = create<ProjectStoreState>((set, get) => ({
 
         try {
           // Create project in backend with minimal data
-          const createRequest: ApiCreateProjectRequest = {
+          const createRequest: any = {
             name,
             description: '',
             storyboardTitle: name,
+            // Don't send creative_brief or selectedMood until they're actually created
             creativeBrief: null,
             selectedMood: null,
-            // Don't send creative_brief or selectedMood until they're actually created
           };
 
           const createdProject = await projectsApi.create(createRequest);
@@ -272,8 +272,39 @@ export const useProjectStore = create<ProjectStoreState>((set, get) => ({
         // Reset scene store FIRST to clear any previous project's scenes
         useSceneStore.getState().reset();
 
-        // Restore app state
-        restoreAppState(project.appState);
+        // Check if project has app_state_snapshot from backend (Option 3)
+        if ((project as any).appStateSnapshot) {
+          console.log('[ProjectStore] Restoring from backend appStateSnapshot');
+          // Restore from the full snapshot saved in backend
+          const snapshot = (project as any).appStateSnapshot;
+          const appStore = useAppStore.getState();
+          
+          // Restore all fields from the snapshot
+          if (snapshot.currentStep) appStore.setCurrentStep(snapshot.currentStep);
+          if (snapshot.creativeBrief) appStore.setCreativeBrief(snapshot.creativeBrief);
+          if (snapshot.chatMessages) {
+            appStore.setChatMessages(
+              snapshot.chatMessages.map((msg: any) => ({
+                ...msg,
+                timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date(),
+              }))
+            );
+          }
+          if (snapshot.moods) appStore.setMoods(snapshot.moods);
+          if (snapshot.selectedMoodId !== undefined) appStore.selectMood(snapshot.selectedMoodId || '');
+          if (snapshot.backgroundAssets) appStore.setBackgroundAssets(snapshot.backgroundAssets);
+          if (snapshot.selectedBackgroundIds) appStore.setSelectedBackgroundIds(snapshot.selectedBackgroundIds);
+          if (snapshot.storyboardCompleted !== undefined) appStore.setStoryboardCompleted(snapshot.storyboardCompleted);
+          if (snapshot.audioUrl !== undefined) appStore.setAudioUrl(snapshot.audioUrl);
+          if (snapshot.compositionJobId !== undefined) appStore.setCompositionJobId(snapshot.compositionJobId);
+          if (snapshot.finalVideo !== undefined) appStore.setFinalVideo(snapshot.finalVideo);
+          
+          // Any other fields in the snapshot should also be restored
+          // This ensures forward compatibility
+        } else {
+          // Fallback to existing appState format
+          restoreAppState(project.appState);
+        }
 
         // Load storyboard if storyboardId exists
         if (project.storyboardId) {
@@ -322,14 +353,16 @@ export const useProjectStore = create<ProjectStoreState>((set, get) => ({
         // Sync with backend API
         try {
           // Convert local project format to backend format
-          const updateData = {
+          const updateData: any = {
             name: projectToUpdate.name,
             storyboard: appStateSnapshot.creativeBrief ? {
               id: storyboardId || crypto.randomUUID(),
-              title: appStateSnapshot.creativeBrief.brandName || projectName,
+              title: (appStateSnapshot.creativeBrief as any).product_name || projectName,
               creativeBrief: appStateSnapshot.creativeBrief,
               selectedMood: appStateSnapshot.moods.find(m => m.id === appStateSnapshot.selectedMoodId) || null,
-            } : null,
+            } : undefined,  // Use undefined instead of null for optional field
+            // NEW: Option 3 - Store entire appStore state for perfect sync
+            appStateSnapshot: appStateSnapshot,
             // Note: scenes will be handled separately via scene APIs
           };
 

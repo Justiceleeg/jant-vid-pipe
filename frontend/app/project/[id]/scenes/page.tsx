@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { StoryboardCarousel } from '@/components/storyboard';
 import { useProjectScenes } from '@/hooks/useProjectScenes';
@@ -9,6 +9,7 @@ import { useAppStore } from '@/store/appStore';
 import { ToastProvider, useToast } from '@/components/ui/Toast';
 import { ErrorAlert } from '@/components/ui/ErrorAlert';
 import { STEPS } from '@/lib/steps';
+import { projectsApi } from '@/lib/api/projects';
 
 /**
  * Scenes Page - Project-Centric Implementation
@@ -46,6 +47,10 @@ function ScenesPageContent() {
     setError,
   } = useProjectScenes(projectId);
 
+  // Track initialization state to prevent multiple calls
+  const [isInitializing, setIsInitializing] = useState(false);
+  const [hasInitialized, setHasInitialized] = useState(false);
+
   // Handle project loading errors
   useEffect(() => {
     if (projectError) {
@@ -53,6 +58,50 @@ function ScenesPageContent() {
       router.push('/projects');
     }
   }, [projectError, router]);
+
+  // Auto-initialize scenes when empty
+  useEffect(() => {
+    // Only initialize if:
+    // 1. Not currently loading project or scenes
+    // 2. Project exists and has creative brief and mood
+    // 3. Scenes array is empty
+    // 4. Not already initializing or initialized
+    if (!isLoading && 
+        !isProjectLoading && 
+        project && 
+        project.storyboard?.creativeBrief && 
+        project.storyboard?.selectedMood && 
+        scenes.length === 0 && 
+        !isInitializing && 
+        !hasInitialized) {
+      
+      console.log('[ScenesPage] Auto-initializing scenes for project:', projectId);
+      setIsInitializing(true);
+      
+      projectsApi.initializeScenes(projectId)
+        .then((updatedProject) => {
+          console.log('[ScenesPage] Scenes initialized successfully:', updatedProject.scenes?.length || 0, 'scenes');
+          setHasInitialized(true);
+          addToast({
+            type: 'success',
+            message: `Generated ${updatedProject.scenes?.length || 0} scenes successfully`,
+            duration: 5000,
+          });
+        })
+        .catch((err) => {
+          console.error('[ScenesPage] Failed to initialize scenes:', err);
+          setError(err.message || 'Failed to generate scenes');
+          addToast({
+            type: 'error',
+            message: 'Failed to generate scenes. Please try again.',
+            duration: 5000,
+          });
+        })
+        .finally(() => {
+          setIsInitializing(false);
+        });
+    }
+  }, [isLoading, isProjectLoading, project, scenes, isInitializing, hasInitialized, projectId, addToast, setError]);
 
   // Handle operations with toast feedback
   const handleApproveText = async (sceneId: string) => {
@@ -256,15 +305,20 @@ function ScenesPageContent() {
   }, [project, scenes]);
 
   // Loading state
-  if (isLoading || isProjectLoading) {
+  if (isLoading || isProjectLoading || isInitializing) {
     return (
       <div className="flex min-h-[calc(100vh-80px)] sm:min-h-[calc(100vh-100px)] items-center justify-center p-3 sm:p-4 md:p-6 lg:p-8 animate-fadeIn">
         <div className="w-full max-w-7xl space-y-3 sm:space-y-4 md:space-y-6 pt-4 sm:pt-6 md:pt-8">
           <div className="text-center space-y-4">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
             <p className="text-muted-foreground">
-              Loading Scenes
+              {isInitializing ? 'Generating scenes with AI...' : 'Loading Scenes'}
             </p>
+            {isInitializing && (
+              <p className="text-xs text-muted-foreground">
+                This may take a few moments
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -306,15 +360,62 @@ function ScenesPageContent() {
     );
   }
 
-  // No scenes state
+  // No scenes state - check if we need prerequisites
   if (!project || !storyboardForCarousel || storyboardScenes.length === 0) {
+    // Check what's missing
+    const missingBrief = !project?.storyboard?.creativeBrief;
+    const missingMood = !project?.storyboard?.selectedMood;
+    
+    // If prerequisites are missing, guide user back
+    if (missingBrief || missingMood) {
+      return (
+        <div className="flex min-h-[calc(100vh-80px)] sm:min-h-[calc(100vh-100px)] items-center justify-center p-3 sm:p-4 md:p-6 lg:p-8 animate-fadeIn">
+          <div className="w-full max-w-7xl space-y-3 sm:space-y-4 md:space-y-6 pt-4 sm:pt-6 md:pt-8">
+            <div className="max-w-md w-full text-center space-y-4">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
+                <svg
+                  className="w-8 h-8 text-primary"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"
+                  />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold">Setup Required</h3>
+              <p className="text-sm text-muted-foreground">
+                {missingBrief && missingMood 
+                  ? "Please complete the creative brief and mood selection first."
+                  : missingBrief 
+                    ? "Please complete the creative brief first."
+                    : "Please select a mood first."}
+              </p>
+              <button
+                onClick={() => router.push(`/project/${projectId}/${missingBrief ? 'chat' : 'mood'}`)}
+                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+              >
+                {missingBrief ? 'Go to Creative Brief' : 'Select Mood'}
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    
+    // Prerequisites exist but no scenes - this shouldn't happen with auto-init
+    // but provide a fallback UI
     return (
       <div className="flex min-h-[calc(100vh-80px)] sm:min-h-[calc(100vh-100px)] items-center justify-center p-3 sm:p-4 md:p-6 lg:p-8 animate-fadeIn">
         <div className="w-full max-w-7xl space-y-3 sm:space-y-4 md:space-y-6 pt-4 sm:pt-6 md:pt-8">
           <div className="max-w-md w-full text-center space-y-4">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-yellow-100 dark:bg-yellow-900/20 flex items-center justify-center">
               <svg
-                className="w-8 h-8 text-primary"
+                className="w-8 h-8 text-yellow-600 dark:text-yellow-400"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -323,19 +424,24 @@ function ScenesPageContent() {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   strokeWidth={2}
-                  d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
                 />
               </svg>
             </div>
-            <h3 className="text-lg font-semibold">No Scenes Found</h3>
+            <h3 className="text-lg font-semibold">Scenes Not Generated</h3>
             <p className="text-sm text-muted-foreground">
-              Please complete the creative brief and mood selection first.
+              Scenes should have been generated automatically. 
+              Click below to try again.
             </p>
             <button
-              onClick={() => router.push(`/project/${projectId}/chat`)}
+              onClick={() => {
+                setHasInitialized(false);
+                setIsInitializing(false);
+              }}
               className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+              disabled={isInitializing}
             >
-              Go to Creative Brief
+              Generate Scenes
             </button>
           </div>
         </div>

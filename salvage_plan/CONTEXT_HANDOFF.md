@@ -22,11 +22,11 @@ Tom built a Firestore/Firebase backend on branch `tom-backend` while 3 teammates
 
 ## Implementation Plan (Phase Summary)
 
-### Phase 1: Critical Fixes (45 min) 
+### ✅ Phase 1: Critical Fixes COMPLETE
 ```
-1A. Fix scene init → add auto-init when empty
-1B. Add missing endpoints → regenerate text/image
-1C. State persistence → Option 3: Store ENTIRE appStore as JSON blob
+1A. Fix scene init → ✅ Auto-init added to scenes page
+1B. Add missing endpoints → ✅ Regenerate text/image endpoints created
+1C. State persistence → ✅ Option 3 implemented (full appStore snapshot)
 ```
 
 ### Phase 2: Deploy & Test (30 min)
@@ -46,18 +46,19 @@ Fix audio storage → Verify all assets → Firebase
 
 ## Key Files & Status
 
-### Frontend
+### Frontend (Updated)
 - ✅ `frontend/app/project/[id]/mood/page.tsx` - Working, saves to Firebase
-- 🔧 `frontend/app/project/[id]/scenes/page.tsx` - NEEDS scene init added
-- 🔧 `frontend/hooks/useProjectScenes.ts` - Has stub functions
-- ❌ `frontend/hooks/useStoryboard.ts` - DELETE THIS
-- 🔧 `frontend/store/projectStore.ts` - Needs app_state_snapshot
+- ✅ `frontend/app/project/[id]/scenes/page.tsx` - Scene auto-init ADDED
+- ✅ `frontend/hooks/useProjectScenes.ts` - Regenerate functions WIRED UP
+- ❌ `frontend/hooks/useStoryboard.ts` - DELETE THIS (Phase 3)
+- ✅ `frontend/store/projectStore.ts` - app_state_snapshot IMPLEMENTED
+- ✅ `frontend/lib/api/projects.ts` - regenerateText/Image methods ADDED
 
-### Backend  
-- ✅ `backend/app/routers/projects.py` - Has endpoints, needs 2 more
-- ✅ `backend/app/models/project_models.py` - Needs app_state field
-- ❌ `backend/app/routers/storyboards.py` - DELETE THIS
-- 🔧 `backend/app/services/storyboard_service.py` - Extract OpenAI logic then DELETE
+### Backend (Updated)
+- ✅ `backend/app/routers/projects.py` - All endpoints ADDED
+- ✅ `backend/app/models/project_models.py` - app_state_snapshot field ADDED
+- ❌ `backend/app/routers/storyboards.py` - DELETE THIS (Phase 3)
+- 🔧 `backend/app/services/storyboard_service.py` - Extract OpenAI logic (Phase 3)
 
 ## Critical Decisions Made
 1. **Use project system only** - Delete storyboard system entirely

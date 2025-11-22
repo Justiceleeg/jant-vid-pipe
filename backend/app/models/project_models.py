@@ -133,6 +133,13 @@ class Project(BaseModel):
 
     # Project-level stats for monitoring
     stats: ProjectStats
+    
+    # NEW: Complete UI state snapshot (Option 3)
+    # This captures the entire frontend appStore state for perfect sync
+    app_state_snapshot: Optional[Dict[str, Any]] = None
+    
+    # Track which fields are authoritative
+    snapshot_version: int = 1  # Increment if snapshot structure changes
 
     class Config:
         """Pydantic configuration."""
@@ -158,6 +165,7 @@ class UpdateProjectRequest(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     storyboard: Optional[EmbeddedStoryboard] = None
+    app_state_snapshot: Optional[Dict[str, Any]] = None  # For Option 3 state sync
 
 
 class UpdateSceneRequest(BaseModel):
