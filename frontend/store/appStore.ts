@@ -55,6 +55,14 @@ interface AppState {
   uploadedProduct: ProductImage | null;
   setUploadedProduct: (product: ProductImage | null) => void;
 
+  // Audio: Rendered video and audio generation
+  renderedVideoUrl: string | null;
+  renderedVideoDuration: number | null;
+  isRenderingVideo: boolean;
+  setRenderedVideoUrl: (url: string | null) => void;
+  setRenderedVideoDuration: (duration: number | null) => void;
+  setRenderingVideo: (isRendering: boolean) => void;
+
   // Final: Composition
   audioUrl: string | null;
   setAudioUrl: (url: string | null) => void;
@@ -102,6 +110,14 @@ export const useAppStore = create<AppState>((set) => ({
   uploadedProduct: null,
   setUploadedProduct: (product) => set({ uploadedProduct: product }),
 
+  // Audio: Rendered video and audio generation
+  renderedVideoUrl: null,
+  renderedVideoDuration: null,
+  isRenderingVideo: false,
+  setRenderedVideoUrl: (url) => set({ renderedVideoUrl: url }),
+  setRenderedVideoDuration: (duration) => set({ renderedVideoDuration: duration }),
+  setRenderingVideo: (isRendering) => set({ isRenderingVideo: isRendering }),
+
   // Final: Composition
   audioUrl: null,
   setAudioUrl: (url) => set({ audioUrl: url }),
@@ -126,6 +142,9 @@ export const useAppStore = create<AppState>((set) => ({
       selectedBackgroundIds: [],
       storyboardCompleted: false,
       uploadedProduct: null,
+      renderedVideoUrl: null,
+      renderedVideoDuration: null,
+      isRenderingVideo: false,
       audioUrl: null,
       compositionJobId: null,
       finalVideo: null,

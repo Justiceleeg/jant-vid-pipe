@@ -25,12 +25,6 @@ interface StoryboardCarouselProps {
   onRemoveScene?: (sceneId: string) => Promise<void>;
   onReorderScenes?: (newOrder: string[]) => Promise<void>;
   isLoading?: boolean;
-  // Audio props
-  audioUrl?: string | null;
-  isGeneratingAudio?: boolean;
-  onRegenerateAudio?: () => Promise<void>;
-  audioRef?: React.RefObject<HTMLAudioElement | null>;
-  canGenerateAudio?: boolean;
   // Final video generation props
   allScenesReady?: boolean;
   readyCount?: number;
@@ -57,11 +51,6 @@ export function StoryboardCarousel({
   onRemoveScene,
   onReorderScenes,
   isLoading = false,
-  audioUrl,
-  isGeneratingAudio = false,
-  onRegenerateAudio,
-  audioRef,
-  canGenerateAudio = false,
   allScenesReady = false,
   readyCount = 0,
   totalScenes = 0,
@@ -190,69 +179,6 @@ export function StoryboardCarousel({
               isGenerating={isAnySceneGenerating}
             />
           </div>
-          
-          {/* Audio Component - inline with scene pills */}
-          {audioUrl !== undefined && (
-            <div className="flex items-center gap-2 flex-shrink-0">
-              {audioUrl ? (
-                <div className="flex items-center gap-2 bg-[rgb(255,81,1)]/10 border-2 border-[rgb(255,81,1)]/30 rounded-md px-3 py-1.5 h-8 shadow-sm">
-                  <span className="text-[rgb(255,81,1)] text-xs font-bold flex-shrink-0">✓</span>
-                  <audio
-                    ref={audioRef}
-                    controls
-                    src={audioUrl}
-                    className="flex-1 h-6 min-w-0"
-                    preload="metadata"
-                    style={{ accentColor: 'rgb(255, 81, 1)' }}
-                  />
-                  {onRegenerateAudio && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-6 px-2 text-xs flex-shrink-0 text-[rgb(255,81,1)] hover:bg-[rgb(255,81,1)]/10"
-                      onClick={onRegenerateAudio}
-                      disabled={isGeneratingAudio || isLoading}
-                      title="Regenerate audio"
-                    >
-                      {isGeneratingAudio ? (
-                        <div className="w-3 h-3 border-2 border-[rgb(255,81,1)] border-t-transparent rounded-full animate-spin" />
-                      ) : (
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                      )}
-                    </Button>
-                  )}
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 bg-gradient-to-r from-[rgb(255,81,1)]/10 to-[rgb(255,200,50)]/10 border-2 border-[rgb(255,81,1)]/30 rounded-md px-3 py-1.5 h-8 shadow-sm">
-                  {isGeneratingAudio ? (
-                    <>
-                      <div className="w-3.5 h-3.5 border-2 border-[rgb(255,81,1)] border-t-transparent rounded-full animate-spin flex-shrink-0" />
-                      <span className="text-xs font-semibold text-[rgb(255,81,1)]">Generating music...</span>
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-4 h-4 text-[rgb(255,81,1)] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
-                      </svg>
-                      <span className="text-xs font-semibold text-foreground">Generate background music</span>
-                    </>
-                  )}
-                  {!isGeneratingAudio && onRegenerateAudio && canGenerateAudio && (
-                    <Button
-                      size="sm"
-                      className="h-6 px-3 text-xs ml-auto flex-shrink-0 bg-[rgb(255,81,1)] text-white hover:bg-[rgb(255,100,20)] font-bold"
-                      onClick={onRegenerateAudio}
-                      disabled={isLoading}
-                    >
-                      Generate
-                    </Button>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
         </div>
       </div>
 
@@ -369,7 +295,7 @@ export function StoryboardCarousel({
               disabled={!allScenesReady || isLoading}
               className="h-10 text-sm px-6 bg-[rgb(255,81,1)] text-[rgb(196,230,43)] hover:bg-[rgb(255,100,20)] font-bold shadow-md hover:shadow-lg transition-all"
             >
-              Generate Final Video
+              Render Video
               <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>

@@ -10,7 +10,7 @@ class AudioGenerationRequest(BaseModel):
     emotional_tone: List[str] = Field(..., description="List of emotional tones from creative brief")
     aesthetic_direction: str = Field(..., description="Overall aesthetic direction")
     style_keywords: Optional[List[str]] = Field(default=None, description="Optional list of visual style keywords")
-    duration: int = Field(default=30, ge=1, le=30, description="Duration in seconds (1-30, default: 30)")
+    duration: int = Field(default=30, ge=1, description="Duration in seconds (default: 30)")
 
 
 class AudioGenerationResponse(BaseModel):
@@ -26,7 +26,7 @@ class MoodAudioRequest(BaseModel):
     """Request model for generating audio for a selected mood."""
     mood_id: str = Field(..., description="Unique identifier of the selected mood")
     creative_brief: dict = Field(..., description="Creative brief data containing emotional tone and other context")
-    duration: int = Field(default=30, ge=1, le=30, description="Duration in seconds (1-30, default: 30)")
+    duration: int = Field(default=30, ge=1, description="Duration in seconds (default: 30)")
 
 
 class AudioGenerationError(BaseModel):

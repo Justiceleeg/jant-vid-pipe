@@ -8,6 +8,7 @@ export const STEPS = {
   MOOD: 'mood',
   BACKGROUNDS: 'backgrounds',
   SCENES: 'scenes',
+  AUDIO: 'audio',
   FINAL: 'final',
 } as const;
 
@@ -21,6 +22,7 @@ export const STEP_ORDER: StepName[] = [
   STEPS.MOOD,
   STEPS.BACKGROUNDS,
   STEPS.SCENES,
+  STEPS.AUDIO,
   STEPS.FINAL,
 ];
 
@@ -32,6 +34,7 @@ export const STEP_LABELS: Record<StepName, string> = {
   [STEPS.MOOD]: 'Mood Selection',
   [STEPS.BACKGROUNDS]: 'Background Selection',
   [STEPS.SCENES]: 'Storyboard',
+  [STEPS.AUDIO]: 'Audio',
   [STEPS.FINAL]: 'Final Composition',
 };
 

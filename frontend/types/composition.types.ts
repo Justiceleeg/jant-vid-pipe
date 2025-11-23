@@ -68,3 +68,22 @@ export interface CompositionJobStatusResponse {
   job_status: CompositionJobStatus | null;
   message?: string;
 }
+
+/**
+ * Request payload for rendering video without audio.
+ */
+export interface RenderVideoRequest {
+  clips: VideoClipInput[];
+  optimize_size?: boolean; // Default: true
+  target_size_mb?: number; // Default: 50
+}
+
+/**
+ * Response from video rendering API.
+ */
+export interface RenderVideoResponse {
+  success: boolean;
+  video_url: string;
+  duration_seconds: number;
+  file_size_mb: number;
+}

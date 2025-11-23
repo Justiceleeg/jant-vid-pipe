@@ -11,7 +11,9 @@ from app.models.composition_models import (
     CompositionResponse,
     CompositionJobStatus,
     CompositionJobStatusResponse,
-    CompositionStatus
+    CompositionStatus,
+    RenderVideoRequest,
+    RenderVideoResponse
 )
 from app.services.ffmpeg_service import FFmpegCompositionService
 
@@ -379,6 +381,122 @@ async def download_video(job_id: str):
         raise HTTPException(
             status_code=500,
             detail=f"Failed to download video: {str(e)}"
+        )
+
+
+@router.post("/render", response_model=RenderVideoResponse)
+async def render_video(request: RenderVideoRequest) -> RenderVideoResponse:
+    """
+    Render video from clips without audio (no crossfades, just concatenation).
+    
+    This endpoint:
+    1. Accepts video clips
+    2. Renders them together without audio
+    3. Returns the rendered video URL and metadata
+    
+    Args:
+        request: Render request with clips and settings
+        
+    Returns:
+        RenderVideoResponse with video URL, duration, and file size
+    """
+    try:
+        # Validate request
+        if not request.clips:
+            raise HTTPException(
+                status_code=400,
+                detail="At least one video clip is required"
+            )
+
+        # Validate clip URLs
+        clips_without_urls = [
+            c.scene_number for c in request.clips
+            if not c.video_url
+        ]
+        if clips_without_urls:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Clips missing video URLs: {clips_without_urls}"
+            )
+
+        # Get composition service
+        service = get_composition_service()
+
+        # Prepare clip data for composition
+        clips_data = [
+            {
+                "scene_number": clip.scene_number,
+                "video_url": clip.video_url,
+                "duration": clip.duration
+            }
+            for clip in request.clips
+        ]
+
+        # Render video without audio and without crossfades
+        output_path = await service.compose_video(
+            video_clips=clips_data,
+            audio_url=None,  # No audio
+            include_crossfade=False,  # No crossfades, just concatenate
+            target_bitrate="2500k" if request.optimize_size else "3M"
+        )
+
+        if not output_path or not output_path.exists():
+            raise HTTPException(
+                status_code=500,
+                detail="Video rendering failed to produce output file"
+            )
+
+        # Optimize if requested
+        if request.optimize_size:
+            output_path = await service.optimize_file_size(
+                output_path,
+                target_size_mb=request.target_size_mb
+            )
+
+        # Get file info
+        file_size_mb = output_path.stat().st_size / (1024 * 1024)
+
+        # Calculate duration
+        from ffmpeg import probe
+        probe_data = probe(str(output_path))
+        duration_seconds = float(probe_data['format']['duration'])
+
+        # Create a temporary job ID for file access
+        # In production, you might want to upload to cloud storage
+        job_id = str(uuid.uuid4())
+        video_url = f"/api/composition/download/{job_id}"
+
+        # Store file path temporarily (will be cleaned up later)
+        # For now, we'll use a simple in-memory mapping
+        # In production, use proper temporary storage
+        _jobs[job_id] = CompositionJobStatus(
+            job_id=job_id,
+            status=CompositionStatus.COMPLETED,
+            progress_percent=100,
+            total_clips=len(request.clips),
+            current_step="Rendered",
+            video_url=video_url,
+            file_path=str(output_path),
+            file_size_mb=file_size_mb,
+            duration_seconds=duration_seconds,
+            error=None,
+            created_at=datetime.utcnow().isoformat(),
+            updated_at=datetime.utcnow().isoformat()
+        )
+
+        return RenderVideoResponse(
+            success=True,
+            video_url=video_url,
+            duration_seconds=duration_seconds,
+            file_size_mb=file_size_mb
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to render video: {str(e)}"
         )
 
 

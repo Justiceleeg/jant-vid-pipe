@@ -38,7 +38,7 @@ async def generate_audio(
 
     This endpoint:
     1. Builds a music generation prompt from mood characteristics
-    2. Generates instrumental background music (up to 30 seconds)
+    2. Generates instrumental background music (variable duration)
     3. Returns the audio URL and generation metadata
 
     Args:
