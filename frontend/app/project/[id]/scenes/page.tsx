@@ -650,7 +650,7 @@ function ScenesPageContent() {
   return (
     <div className="h-screen flex flex-col overflow-hidden animate-fadeIn">
       {/* Top bar with Title */}
-      <div className="w-full flex justify-center px-4 sm:px-6 lg:px-8 pt-[calc(3.5rem+1rem)] pb-2 flex-shrink-0">
+      <div className="w-full flex justify-center px-4 sm:px-6 lg:px-8 pt-[calc(3.5rem+1rem)] pb-1 flex-shrink-0">
         <div className="w-full max-w-7xl flex items-center justify-between">
           {/* Title - centered (spacer on left for balance) */}
           <div className="flex-1"></div>
@@ -662,12 +662,6 @@ function ScenesPageContent() {
         </div>
       </div>
 
-      {/* Compact header bar */}
-      <div className="flex-shrink-0 px-4 sm:px-6 py-2 border-b border-border bg-background/95 backdrop-blur-sm">
-        <div className="max-w-7xl mx-auto">
-          {/* Empty header bar for spacing */}
-        </div>
-      </div>
 
       {/* Main content area - fills remaining viewport */}
       <div className="flex-1 min-h-0 overflow-hidden">

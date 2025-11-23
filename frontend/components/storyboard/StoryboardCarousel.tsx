@@ -175,7 +175,7 @@ export function StoryboardCarousel({
   return (
     <div className="h-full flex flex-col w-full px-4 sm:px-6">
       {/* Top bar with timeline - compact */}
-      <div className="flex-shrink-0 py-2 border-b border-border">
+      <div className="flex-shrink-0 py-2">
         <div className="flex items-center justify-between gap-4">
           {/* Compact Timeline */}
           <div className="flex-shrink-0">

@@ -53,7 +53,6 @@ export function SceneCardNew({
   // Define derived state values
   const isGeneratingImage = scene.generation_status.image === 'generating';
   const isGeneratingVideo = scene.generation_status.video === 'generating';
-  const hasError = !!scene.error_message;
 
   // Auto-show trimmer when video is available and complete
   useEffect(() => {
@@ -200,21 +199,6 @@ export function SceneCardNew({
 
   return (
     <div className="w-full h-full bg-card border border-border rounded-lg overflow-hidden flex flex-col">
-      {/* Error alert */}
-      {hasError && (
-        <div className="bg-destructive/10 border-b border-destructive px-6 py-3">
-          <div className="flex items-start gap-2">
-            <svg className="w-5 h-5 text-destructive mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-            </svg>
-            <div>
-              <p className="text-sm font-medium text-destructive">Error</p>
-              <p className="text-xs text-destructive/80">{scene.error_message}</p>
-            </div>
-          </div>
-        </div>
-      )}
-
       <div className="flex-1 min-h-0 flex flex-col p-3 sm:p-4 space-y-3 overflow-visible">
         {/* TEXT STATE - only show if not generating image */}
         {scene.state === 'text' && !isGeneratingImage && (
@@ -395,8 +379,8 @@ export function SceneCardNew({
                     const newValue = parseFloat((e.target as HTMLInputElement).value);
                     handleDurationChange(newValue);
                   }}
-                    className="w-3/5 h-2.5 bg-muted rounded-lg appearance-none cursor-pointer accent-primary hover:accent-primary/80 transition-all duration-200 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:transition-all [&::-webkit-slider-thumb]:duration-200 [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-primary [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:shadow-md"
-                  disabled={isLoading}
+                    className="w-3/5 h-2.5 bg-muted rounded-lg appearance-none cursor-pointer accent-primary hover:accent-primary/80 transition-all duration-200 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:transition-all [&::-webkit-slider-thumb]:duration-200 [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-primary [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={isLoading || isGeneratingImage || isGeneratingVideo}
                 />
                 </div>
               </div>
@@ -544,8 +528,8 @@ export function SceneCardNew({
                       const newValue = parseFloat((e.target as HTMLInputElement).value);
                       handleDurationChange(newValue);
                     }}
-                    className="w-3/5 h-2.5 bg-muted rounded-lg appearance-none cursor-pointer accent-primary hover:accent-primary/80 transition-all duration-200 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:transition-all [&::-webkit-slider-thumb]:duration-200 [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-primary [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:shadow-md"
-                    disabled={isLoading}
+                    className="w-3/5 h-2.5 bg-muted rounded-lg appearance-none cursor-pointer accent-primary hover:accent-primary/80 transition-all duration-200 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:transition-all [&::-webkit-slider-thumb]:duration-200 [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-primary [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={isLoading || isGeneratingImage || isGeneratingVideo}
                   />
                 </div>
               </div>
