@@ -1,6 +1,6 @@
 'use client';
 
-import { listBrandAssets, deleteBrandAsset, getBrandAssetImageUrl } from '@/lib/api/brand';
+import { listBrandAssets, deleteBrandAsset } from '@/lib/api/brand';
 import { AssetList } from '@/components/asset/AssetList';
 
 interface BrandAssetListProps {
@@ -18,7 +18,6 @@ export function BrandAssetList({ onAssetDeleted, refreshTrigger }: BrandAssetLis
       refreshTrigger={refreshTrigger}
       listFn={listBrandAssets}
       deleteFn={deleteBrandAsset}
-      getImageUrl={getBrandAssetImageUrl}
     />
   );
 }

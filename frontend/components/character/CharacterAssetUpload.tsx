@@ -1,7 +1,6 @@
 'use client';
 
 import { useCharacterUpload } from '@/hooks/useCharacterUpload';
-import { getCharacterAssetImageUrl } from '@/lib/api/character';
 import { AssetUpload } from '@/components/asset/AssetUpload';
 
 interface CharacterAssetUploadProps {
@@ -20,7 +19,6 @@ export function CharacterAssetUpload({ onUploadComplete }: CharacterAssetUploadP
       successMessage="Your character asset has been uploaded successfully"
       onUploadComplete={onUploadComplete}
       uploadHook={uploadHook}
-      getImageUrl={getCharacterAssetImageUrl}
     />
   );
 }

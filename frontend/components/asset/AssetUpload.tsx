@@ -20,7 +20,6 @@ interface AssetUploadProps<T extends Asset> {
     clearError: () => void;
     reset: () => void;
   };
-  getImageUrl: (assetId: string, userId: string, thumbnail: boolean) => string;
 }
 
 export function AssetUpload<T extends Asset>({
@@ -31,7 +30,6 @@ export function AssetUpload<T extends Asset>({
   successMessage,
   onUploadComplete,
   uploadHook,
-  getImageUrl,
 }: AssetUploadProps<T>) {
   const {
     uploadedAsset,

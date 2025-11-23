@@ -5,9 +5,9 @@ import Image from 'next/image';
 import { useFirebaseAuth } from '@/lib/firebase/AuthContext';
 import { useProjectStore } from '@/store/projectStore';
 import { useSceneStore } from '@/store/sceneStore';
-import { listBrandAssets, getBrandAssetImageUrl } from '@/lib/api/brand';
-import { listCharacterAssets, getCharacterAssetImageUrl } from '@/lib/api/character';
-import { listBackgroundAssets, getBackgroundImageUrl } from '@/lib/api/background';
+import { listBrandAssets } from '@/lib/api/brand';
+import { listCharacterAssets } from '@/lib/api/character';
+import { listBackgroundAssets } from '@/lib/api/background';
 import { cn } from '@/lib/utils';
 import type { StoryboardScene } from '@/types/storyboard.types';
 import type { BrandAssetStatus } from '@/types/brand.types';
@@ -40,13 +40,13 @@ export function SceneAssetToggleSection({ scene }: SceneAssetToggleSectionProps)
 
   // Load brand assets
   useEffect(() => {
-    if (projectBrandAssetIds.length === 0) return;
-    
+    if (projectBrandAssetIds.length === 0 || !userId) return;
+
     setIsLoadingBrand(true);
-    listBrandAssets(userId!)
+    listBrandAssets(userId)
       .then(allBrandAssets => {
         // Filter to only show assets that are in the project
-        const projectBrandAssets = allBrandAssets.filter(asset => 
+        const projectBrandAssets = allBrandAssets.filter(asset =>
           projectBrandAssetIds.includes(asset.asset_id)
         );
         setBrandAssets(projectBrandAssets);
@@ -57,17 +57,17 @@ export function SceneAssetToggleSection({ scene }: SceneAssetToggleSectionProps)
       .finally(() => {
         setIsLoadingBrand(false);
       });
-  }, [projectBrandAssetIds]);
+  }, [projectBrandAssetIds, userId]);
 
   // Load character assets
   useEffect(() => {
-    if (projectCharacterAssetIds.length === 0) return;
-    
+    if (projectCharacterAssetIds.length === 0 || !userId) return;
+
     setIsLoadingCharacter(true);
-    listCharacterAssets(userId!)
+    listCharacterAssets(userId)
       .then(allCharacterAssets => {
         // Filter to only show assets that are in the project
-        const projectCharacterAssets = allCharacterAssets.filter(asset => 
+        const projectCharacterAssets = allCharacterAssets.filter(asset =>
           projectCharacterAssetIds.includes(asset.asset_id)
         );
         setCharacterAssets(projectCharacterAssets);
@@ -78,17 +78,17 @@ export function SceneAssetToggleSection({ scene }: SceneAssetToggleSectionProps)
       .finally(() => {
         setIsLoadingCharacter(false);
       });
-  }, [projectCharacterAssetIds]);
+  }, [projectCharacterAssetIds, userId]);
 
   // Load background assets
   useEffect(() => {
-    if (projectBackgroundAssetIds.length === 0) return;
-    
+    if (projectBackgroundAssetIds.length === 0 || !userId) return;
+
     setIsLoadingBackground(true);
-    listBackgroundAssets(userId!)
+    listBackgroundAssets(userId)
       .then(allBackgroundAssets => {
         // Filter to only show assets that are in the project
-        const projectBackgroundAssets = allBackgroundAssets.filter(asset => 
+        const projectBackgroundAssets = allBackgroundAssets.filter(asset =>
           projectBackgroundAssetIds.includes(asset.asset_id)
         );
         setBackgroundAssets(projectBackgroundAssets);
@@ -99,7 +99,7 @@ export function SceneAssetToggleSection({ scene }: SceneAssetToggleSectionProps)
       .finally(() => {
         setIsLoadingBackground(false);
       });
-  }, [projectBackgroundAssetIds]);
+  }, [projectBackgroundAssetIds, userId]);
 
   const handleBrandToggle = async (checked: boolean, assetId: string) => {
     setIsTogglingBrand(true);
@@ -182,24 +182,20 @@ export function SceneAssetToggleSection({ scene }: SceneAssetToggleSectionProps)
   }
 
   // Asset grid component - uses same style as project creation modal
-  const AssetGrid = ({ 
-    assets, 
-    selectedId, 
-    onToggle, 
-    getImageUrl, 
-    isLoading, 
+  const AssetGrid = ({
+    assets,
+    selectedId,
+    onToggle,
+    isLoading,
     isToggling,
-    label,
-    userId
-  }: { 
-    assets: (BrandAssetStatus | CharacterAssetStatus | BackgroundAssetStatus)[]; 
+    label
+  }: {
+    assets: (BrandAssetStatus | CharacterAssetStatus | BackgroundAssetStatus)[];
     selectedId: string | null;
     onToggle: (checked: boolean, assetId: string) => void;
-    getImageUrl: (assetId: string, userId: string, thumbnail: boolean) => string;
     isLoading: boolean;
     isToggling: boolean;
     label: string;
-    userId: string | null | undefined;
   }) => {
     if (isLoading) {
       return (
@@ -225,6 +221,7 @@ export function SceneAssetToggleSection({ scene }: SceneAssetToggleSectionProps)
         <div className="grid grid-cols-4 md:grid-cols-6 gap-1.5">
             {assets.map((asset) => {
               const isSelected = selectedId === asset.asset_id;
+              const imageUrl = asset.public_thumbnail_url || asset.public_url || '';
               return (
               <div
                   key={asset.asset_id}
@@ -238,9 +235,9 @@ export function SceneAssetToggleSection({ scene }: SceneAssetToggleSectionProps)
                 onClick={() => !isToggling && onToggle(!isSelected, asset.asset_id)}
                 >
                 <div className="relative w-full aspect-square bg-muted rounded overflow-hidden">
-                  {userId && (
+                  {imageUrl && (
                     <Image
-                      src={getImageUrl(asset.asset_id, userId, false)}
+                      src={imageUrl}
                       alt={asset.metadata?.filename || `${label} asset`}
                       fill
                       className="object-cover rounded"
@@ -266,11 +263,9 @@ export function SceneAssetToggleSection({ scene }: SceneAssetToggleSectionProps)
           assets={brandAssets}
           selectedId={scene.brand_asset_id ?? null}
           onToggle={handleBrandToggle}
-          getImageUrl={getBrandAssetImageUrl}
           isLoading={isLoadingBrand}
           isToggling={isTogglingBrand}
           label="Brand Asset"
-          userId={userId}
         />
       )}
 
@@ -280,11 +275,9 @@ export function SceneAssetToggleSection({ scene }: SceneAssetToggleSectionProps)
           assets={characterAssets}
           selectedId={scene.character_asset_id ?? null}
           onToggle={handleCharacterToggle}
-          getImageUrl={getCharacterAssetImageUrl}
           isLoading={isLoadingCharacter}
           isToggling={isTogglingCharacter}
           label="Character Asset"
-          userId={userId}
         />
       )}
 
@@ -294,11 +287,9 @@ export function SceneAssetToggleSection({ scene }: SceneAssetToggleSectionProps)
           assets={backgroundAssets}
           selectedId={scene.background_asset_id ?? null}
           onToggle={handleBackgroundToggle}
-          getImageUrl={getBackgroundImageUrl}
           isLoading={isLoadingBackground}
           isToggling={isTogglingBackground}
           label="Background Asset"
-          userId={userId}
         />
       )}
       </div>

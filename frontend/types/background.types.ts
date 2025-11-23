@@ -18,6 +18,7 @@ export interface BackgroundGenerationRequest {
   emotional_tone: string[];
   visual_style_keywords: string[];
   key_messages: string[];
+  user_id?: string | null;
 }
 
 /**

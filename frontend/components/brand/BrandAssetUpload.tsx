@@ -1,7 +1,6 @@
 'use client';
 
 import { useBrandUpload } from '@/hooks/useBrandUpload';
-import { getBrandAssetImageUrl } from '@/lib/api/brand';
 import { AssetUpload } from '@/components/asset/AssetUpload';
 
 interface BrandAssetUploadProps {
@@ -20,7 +19,6 @@ export function BrandAssetUpload({ onUploadComplete }: BrandAssetUploadProps) {
       successMessage="Your brand asset has been uploaded successfully"
       onUploadComplete={onUploadComplete}
       uploadHook={uploadHook}
-      getImageUrl={getBrandAssetImageUrl}
     />
   );
 }

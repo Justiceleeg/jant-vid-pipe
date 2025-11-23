@@ -156,35 +156,43 @@ export default function BackgroundsPage() {
   }, [getCurrentProject, backgroundAssets.length, isBackgroundLoading]);
 
   // Auto-generate backgrounds when page loads if no backgrounds exist
+  const hasGeneratedRef = useRef(false);
+
   useEffect(() => {
-    if (backgroundAssets.length === 0 && !isBackgroundLoading && creativeBrief) {
+    // Only generate once per mount
+    if (hasGeneratedRef.current) return;
+
+    if (backgroundAssets.length === 0 && !isBackgroundLoading && creativeBrief && userId) {
+      hasGeneratedRef.current = true;
       const request: BackgroundGenerationRequest = {
         product_name: creativeBrief.product_name || 'Product',
         target_audience: creativeBrief.target_audience || 'General Audience',
         emotional_tone: creativeBrief.emotional_tone || [],
         visual_style_keywords: creativeBrief.visual_style_keywords || [],
         key_messages: creativeBrief.key_messages || [],
+        user_id: userId,
       };
       generateBackgroundsFromBrief(request);
     }
-  }, [backgroundAssets.length, isBackgroundLoading, creativeBrief, generateBackgroundsFromBrief]);
+  }, [backgroundAssets.length, isBackgroundLoading, creativeBrief, userId, generateBackgroundsFromBrief]);
 
   const handleGenerateBackgrounds = async () => {
-    if (!creativeBrief) return;
-    
+    if (!creativeBrief || !userId) return;
+
     // Clear existing backgrounds and selection when regenerating
     const { setBackgroundAssets, setSelectedBackgroundIds } = useAppStore.getState();
     setBackgroundAssets([]);
     setSelectedBackgroundIds([]);
-    
+
     const request: BackgroundGenerationRequest = {
       product_name: creativeBrief.product_name || 'Product',
       target_audience: creativeBrief.target_audience || 'General Audience',
       emotional_tone: creativeBrief.emotional_tone || [],
       visual_style_keywords: creativeBrief.visual_style_keywords || [],
       key_messages: creativeBrief.key_messages || [],
+      user_id: userId,
     };
-    
+
     await generateBackgroundsFromBrief(request);
   };
 

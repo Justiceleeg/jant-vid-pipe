@@ -17,16 +17,10 @@ export const CreativeBriefSummary = lazy(() =>
   }))
 );
 
-// Step 2: Product Upload & NeRF Pipeline
+// Step 2: Product Upload
 export const ProductUpload = lazy(() =>
   import('@/components/product/ProductUpload').then((module) => ({
     default: module.ProductUpload,
-  }))
-);
-
-export const NeRFPipelineView = lazy(() =>
-  import('@/components/nerf/NeRFPipelineView').then((module) => ({
-    default: module.NeRFPipelineView,
   }))
 );
 
