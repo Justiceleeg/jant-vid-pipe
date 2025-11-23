@@ -35,7 +35,8 @@ class FirestoreDatabase:
         # In-memory cache for fast reads
         self._cache_storyboards: Dict[str, Storyboard] = {}
         self._cache_scenes: Dict[str, StoryboardScene] = {}
-        
+        self._cache_assets: Dict[str, Dict] = {}  # asset_id -> asset_metadata
+
         # Initialize Firestore (REQUIRED - will raise if fails)
         self._init_firestore()
     
@@ -276,6 +277,35 @@ class FirestoreDatabase:
         if scene_id in self._cache_scenes:
             del self._cache_scenes[scene_id]
         
+        return True
+
+    # Asset operations (in-memory only for now)
+
+    def create_asset(self, asset_id: str, asset_data: Dict) -> Dict:
+        """Create a new asset (in-memory only).
+
+        Note: Assets are not persisted to Firestore yet, only cached in memory.
+        Files are stored in Firebase Storage.
+        """
+        self._cache_assets[asset_id] = asset_data
+        return asset_data
+
+    def get_asset(self, asset_id: str) -> Optional[Dict]:
+        """Get an asset by ID (from memory cache only)."""
+        return self._cache_assets.get(asset_id)
+
+    def list_assets_by_type(self, asset_type: str) -> List[Dict]:
+        """List all assets of a specific type (from memory cache only)."""
+        return [
+            asset for asset in self._cache_assets.values()
+            if asset.get('asset_type') == asset_type
+        ]
+
+    def delete_asset(self, asset_id: str) -> bool:
+        """Delete an asset (from memory cache only)."""
+        if asset_id not in self._cache_assets:
+            return False
+        del self._cache_assets[asset_id]
         return True
 
 
