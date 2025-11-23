@@ -20,8 +20,8 @@ import {
 import { MoreVertical, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { STEP_LABELS } from '@/lib/steps';
 import { AssetSelectionStep } from '@/components/projects/AssetSelectionStep';
-import { listBrandAssets, getBrandAssetImageUrl } from '@/lib/api/brand';
-import { listCharacterAssets, getCharacterAssetImageUrl } from '@/lib/api/character';
+import { listBrandAssets } from '@/lib/api/brand';
+import { listCharacterAssets } from '@/lib/api/character';
 import type { BrandAssetStatus } from '@/types/brand.types';
 import type { CharacterAssetStatus } from '@/types/character.types';
 
@@ -402,10 +402,9 @@ export default function ProjectsPage() {
                   onBack={handleBackStep}
                   isLoading={isLoadingAssets}
                   assets={brandAssets}
-                  getImageUrl={getBrandAssetImageUrl}
                 />
               )}
-              
+
               {createStep === 'character' && (
                 <AssetSelectionStep
                   assetType="character"
@@ -415,7 +414,6 @@ export default function ProjectsPage() {
                   onBack={handleBackStep}
                   isLoading={isLoadingAssets}
                   assets={characterAssets}
-                  getImageUrl={getCharacterAssetImageUrl}
                 />
               )}
             </CardContent>

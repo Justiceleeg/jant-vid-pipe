@@ -2,29 +2,35 @@
 Product Image Service
 
 Handles product image upload, validation, storage, and thumbnail generation.
+Uses Firebase Storage for cloud storage.
 """
 
 import uuid
-import json
 from pathlib import Path
 from typing import Optional, Tuple
 from datetime import datetime
 from PIL import Image
 import io
+import tempfile
+import logging
 
 from ..models.product_models import (
     ProductImageUploadResponse,
     ProductImageStatus,
     ImageDimensions
 )
+from .firebase_storage_service import get_firebase_storage_service
+
+logger = logging.getLogger(__name__)
 
 
 class ProductImageService:
     """Service for managing product images."""
-    
-    def __init__(self, upload_dir: Path = Path("uploads/products")):
-        self.upload_dir = upload_dir
-        self.upload_dir.mkdir(parents=True, exist_ok=True)
+
+    def __init__(self):
+        self.firebase_service = get_firebase_storage_service()
+        if not self.firebase_service:
+            logger.warning("Firebase Storage not available - product image uploads will fail")
     
     def validate_product_image(self, file_data: bytes, filename: str) -> Tuple[bool, Optional[str]]:
         """
@@ -130,33 +136,34 @@ class ProductImageService:
         return thumb
     
     def save_product_image(
-        self, 
-        file_data: bytes, 
+        self,
+        file_data: bytes,
         filename: str
     ) -> ProductImageUploadResponse:
         """
         Save product image with thumbnail generation.
-        
+
         Steps:
         1. Validate image
         2. Generate UUID product_id
-        3. Create directory
-        4. Save original image
-        5. Generate and save thumbnail
-        6. Extract and save metadata
-        7. Return response
+        3. Process and save original image to Firebase
+        4. Generate and save thumbnail to Firebase
+        5. Return response with Firebase URLs
         """
+        if not self.firebase_service:
+            raise ValueError("Firebase Storage not configured")
+
         # Validate
         is_valid, error = self.validate_product_image(file_data, filename)
         if not is_valid:
             raise ValueError(error)
-        
+
         # Load image
         img = Image.open(io.BytesIO(file_data))
-        
+
         # Save original format before any conversions (PIL loses this after convert)
         original_format = img.format
-        
+
         # Convert palette mode images to RGB/RGBA
         if img.mode == 'P':
             # Check if image has transparency
@@ -169,77 +176,88 @@ class ProductImageService:
         elif img.mode == 'L':
             # Keep grayscale as-is, but convert to RGB for consistency
             img = img.convert('RGB')
-        
+
         # Generate product_id
         product_id = str(uuid.uuid4())
-        
-        # Create product directory
-        product_dir = self.upload_dir / product_id
-        product_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Determine format and extension (use saved format)
         img_format = original_format.lower()
         if img_format == 'jpeg':
             img_format = 'jpg'
         ext = 'png' if img_format == 'png' else 'jpg'
-        
-        # Save original
-        original_path = product_dir / f"original.{ext}"
-        if img_format == 'png':
-            # Save PNG with full quality, preserve alpha
-            img.save(original_path, 'PNG', optimize=False)
-        else:
-            # Convert RGBA to RGB for JPEG (JPEG doesn't support transparency)
-            if img.mode == 'RGBA':
-                # Create white background
-                rgb_img = Image.new('RGB', img.size, (255, 255, 255))
-                rgb_img.paste(img, mask=img.split()[3])  # Use alpha as mask
-                img = rgb_img
-            elif img.mode == 'L':
-                img = img.convert('RGB')
-            img.save(original_path, 'JPEG', quality=95, optimize=True)
-        
-        # Generate and save thumbnail (always 512x512)
+
+        # Use temporary files for upload
+        with tempfile.NamedTemporaryFile(suffix=f".{ext}", delete=False) as original_temp:
+            original_temp_path = Path(original_temp.name)
+
+            # Save original
+            if img_format == 'png':
+                # Save PNG with full quality, preserve alpha
+                img.save(original_temp_path, 'PNG', optimize=False)
+            else:
+                # Convert RGBA to RGB for JPEG (JPEG doesn't support transparency)
+                if img.mode == 'RGBA':
+                    # Create white background
+                    rgb_img = Image.new('RGB', img.size, (255, 255, 255))
+                    rgb_img.paste(img, mask=img.split()[3])  # Use alpha as mask
+                    img = rgb_img
+                elif img.mode == 'L':
+                    img = img.convert('RGB')
+                img.save(original_temp_path, 'JPEG', quality=95, optimize=True)
+
+            # Upload original to Firebase
+            original_url = self.firebase_service.upload_image(
+                original_temp_path,
+                folder=f"products/{product_id}"
+            )
+
+            # Clean up temp file
+            original_temp_path.unlink()
+
+            if not original_url:
+                raise ValueError("Failed to upload original image to Firebase")
+
+        # Generate and save thumbnail
         thumb = self.generate_thumbnail(img, size=512)
-        thumb_path = product_dir / f"thumb.{ext}"
-        if img_format == 'png':
-            # PNG thumbnails preserve transparency
-            thumb.save(thumb_path, 'PNG', optimize=True)
-        else:
-            # JPEG thumbnails need RGB conversion
-            if thumb.mode == 'RGBA':
-                rgb_thumb = Image.new('RGB', thumb.size, (255, 255, 255))
-                rgb_thumb.paste(thumb, mask=thumb.split()[3])
-                thumb = rgb_thumb
-            thumb.save(thumb_path, 'JPEG', quality=90, optimize=True)
-        
+
+        with tempfile.NamedTemporaryFile(suffix=f".{ext}", delete=False) as thumb_temp:
+            thumb_temp_path = Path(thumb_temp.name)
+
+            if img_format == 'png':
+                # PNG thumbnails preserve transparency
+                thumb.save(thumb_temp_path, 'PNG', optimize=True)
+            else:
+                # JPEG thumbnails need RGB conversion
+                if thumb.mode == 'RGBA':
+                    rgb_thumb = Image.new('RGB', thumb.size, (255, 255, 255))
+                    rgb_thumb.paste(thumb, mask=thumb.split()[3])
+                    thumb = rgb_thumb
+                thumb.save(thumb_temp_path, 'JPEG', quality=90, optimize=True)
+
+            # Upload thumbnail to Firebase
+            thumbnail_url = self.firebase_service.upload_image(
+                thumb_temp_path,
+                folder=f"products/{product_id}"
+            )
+
+            # Clean up temp file
+            thumb_temp_path.unlink()
+
+            if not thumbnail_url:
+                raise ValueError("Failed to upload thumbnail to Firebase")
+
         # Extract metadata
         width, height = img.size
         file_size = len(file_data)
         has_alpha = img.mode == 'RGBA'
         uploaded_at = datetime.utcnow().isoformat()
-        
-        # Save metadata (exact structure required)
-        metadata = {
-            "product_id": product_id,
-            "filename": filename,
-            "format": img_format,  # "png" or "jpg"
-            "dimensions": {"width": width, "height": height},
-            "file_size": file_size,  # bytes
-            "has_alpha": has_alpha,  # boolean
-            "uploaded_at": uploaded_at  # ISO 8601 format
-        }
-        
-        metadata_path = product_dir / "metadata.json"
-        with open(metadata_path, 'w') as f:
-            json.dump(metadata, f, indent=2)
-        
-        # Return response
+
+        # Return response with Firebase URLs
         return ProductImageUploadResponse(
             product_id=product_id,
             filename=filename,
-            url=f"/api/product/{product_id}/image",
-            thumbnail_url=f"/api/product/{product_id}/thumbnail",
+            url=original_url,
+            thumbnail_url=thumbnail_url,
             size=file_size,
             dimensions=ImageDimensions(width=width, height=height),
             format=img_format,
@@ -248,58 +266,27 @@ class ProductImageService:
         )
     
     def get_product_image(self, product_id: str) -> Optional[ProductImageStatus]:
-        """Get product metadata and URLs."""
-        product_dir = self.upload_dir / product_id
-        metadata_path = product_dir / "metadata.json"
-        
-        if not metadata_path.exists():
-            return None
-        
-        with open(metadata_path, 'r') as f:
-            metadata = json.load(f)
-        
-        return ProductImageStatus(
-            product_id=product_id,
-            status="active",
-            url=f"/api/product/{product_id}/image",
-            thumbnail_url=f"/api/product/{product_id}/thumbnail",
-            dimensions=ImageDimensions(**metadata["dimensions"]),
-            format=metadata["format"],
-            has_alpha=metadata["has_alpha"],
-            metadata=metadata
-        )
-    
+        """
+        Get product metadata and URLs.
+        Note: This is deprecated with Firebase Storage as we don't store metadata locally.
+        """
+        logger.warning(f"get_product_image called for {product_id} - metadata not available with Firebase Storage")
+        return None
+
     def delete_product_image(self, product_id: str) -> bool:
-        """Remove product directory and all files."""
-        product_dir = self.upload_dir / product_id
-        
-        if not product_dir.exists():
-            return False
-        
-        # Remove all files in directory
-        import shutil
-        shutil.rmtree(product_dir)
-        
-        return True
-    
+        """
+        Remove product images.
+        Note: Firebase Storage deletion is not implemented in this version.
+        """
+        logger.warning(f"delete_product_image called for {product_id} - deletion not implemented with Firebase Storage")
+        return False
+
     def get_product_image_path(self, product_id: str, thumbnail: bool = False) -> Optional[Path]:
-        """Get path to product image file."""
-        product_dir = self.upload_dir / product_id
-        
-        if not product_dir.exists():
-            return None
-        
-        # Find the image file (could be .png or .jpg)
-        filename = "thumb" if thumbnail else "original"
-        
-        png_path = product_dir / f"{filename}.png"
-        jpg_path = product_dir / f"{filename}.jpg"
-        
-        if png_path.exists():
-            return png_path
-        elif jpg_path.exists():
-            return jpg_path
-        
+        """
+        Get path to product image file.
+        Note: Not applicable with Firebase Storage.
+        """
+        logger.warning(f"get_product_image_path called for {product_id} - not applicable with Firebase Storage")
         return None
 
 

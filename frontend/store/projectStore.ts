@@ -245,7 +245,7 @@ export const useProjectStore = create<ProjectStoreState>()(
       deleteProject: (id) => {
         const state = get();
         const filteredProjects = state.projects.filter(p => p.id !== id);
-        
+
         let newCurrentProjectId = state.currentProjectId;
         if (state.currentProjectId === id) {
           // If deleting current project, select first available or null
@@ -259,10 +259,38 @@ export const useProjectStore = create<ProjectStoreState>()(
           }
         }
 
+        // Save to localStorage (via persist middleware)
         set({
           projects: filteredProjects,
           currentProjectId: newCurrentProjectId,
         });
+
+        // Also delete from Firestore (non-blocking)
+        if (typeof window !== 'undefined') {
+          const userId = getCurrentUserId();
+
+          if (!userId) {
+            console.log('[ProjectStore] Skipping Firestore delete (user not authenticated)');
+            return;
+          }
+
+          if (!canUseFirestore()) {
+            console.log('[ProjectStore] Skipping Firestore delete (Firestore not available)');
+            return;
+          }
+
+          // Async Firestore delete (don't await - non-blocking)
+          import('@/lib/firebase').then(({ deleteProjectFromFirestore }) => {
+            deleteProjectFromFirestore(userId, id)
+              .then(() => {
+                console.log('[ProjectStore] ✓ Deleted from Firestore:', id);
+              })
+              .catch((error) => {
+                console.error('[ProjectStore] Failed to delete from Firestore:', error);
+                // Don't throw - localStorage delete already succeeded
+              });
+          });
+        }
       },
 
       duplicateProject: (id) => {

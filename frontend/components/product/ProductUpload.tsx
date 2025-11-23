@@ -3,7 +3,6 @@
 import { useRef, useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { useProductUpload } from '@/hooks/useProductUpload';
-import { useCOLMAP } from '@/hooks/useCOLMAP';
 
 interface ProductUploadProps {
   onContinue: () => void;
@@ -12,7 +11,6 @@ interface ProductUploadProps {
 export function ProductUpload({ onContinue }: ProductUploadProps) {
   const [productImages, setProductImages] = useState<File[]>([]);
   const { uploadProduct, uploadedProduct, isUploading, uploadProgress, error, clearError } = useProductUpload();
-  const { start: startCOLMAP } = useCOLMAP();
   const [dragActive, setDragActive] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -88,29 +86,14 @@ export function ProductUpload({ onContinue }: ProductUploadProps) {
     }
   };
 
-  const [pendingUpload, setPendingUpload] = useState(false);
-
-  // Handle upload completion and start COLMAP
+  // Handle upload completion
   useEffect(() => {
-    if (pendingUpload && uploadedProduct?.product_id) {
-      const startPipeline = async () => {
-        try {
-          console.log('[ProductUpload] Starting COLMAP for product:', uploadedProduct.product_id);
-          await startCOLMAP({
-            job_id: uploadedProduct.product_id,
-          });
-          
-          // Proceed to next step (pipeline view)
-          setPendingUpload(false);
-          onContinue();
-        } catch (err) {
-          console.error('[ProductUpload] COLMAP start failed:', err);
-          setPendingUpload(false);
-        }
-      };
-      startPipeline();
+    if (uploadedProduct?.product_id) {
+      console.log('[ProductUpload] Product uploaded:', uploadedProduct.product_id);
+      // Proceed to next step
+      onContinue();
     }
-  }, [uploadedProduct, pendingUpload, startCOLMAP, onContinue]);
+  }, [uploadedProduct, onContinue]);
 
   const handleContinue = async () => {
     if (!productImages || productImages.length === 0) {
@@ -118,20 +101,17 @@ export function ProductUpload({ onContinue }: ProductUploadProps) {
     }
 
     // Upload first image (API currently supports single file upload)
-    // TODO: Update to support bulk upload when API is available
     const firstFile = productImages[0];
     if (!firstFile) {
       return;
     }
 
     try {
-      setPendingUpload(true);
       await uploadProduct(firstFile);
-      // The useEffect will handle the rest when uploadedProduct is set
+      // The useEffect will handle navigation when uploadedProduct is set
     } catch (err) {
       // Error is already set by uploadProduct hook
       console.error('[ProductUpload] Upload failed:', err);
-      setPendingUpload(false);
     }
   };
 

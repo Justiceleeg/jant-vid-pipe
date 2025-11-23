@@ -9,7 +9,6 @@ from pathlib import Path
 from PIL import Image
 import io
 import base64
-import shutil
 import time
 import logging
 from app.config import settings
@@ -582,41 +581,43 @@ class ReplicateImageService:
             max_product_height_percent=60
         )
         
-        # Save composited image to temp file
+        # Save composited image to temp file for Firebase upload
         temp_dir = Path(tempfile.gettempdir()) / "product_composites"
         temp_dir.mkdir(exist_ok=True)
-        
+
         composite_filename = f"composite_{uuid.uuid4()}.png"
         composite_path = temp_dir / composite_filename
-        
+
         composited.save(composite_path, 'PNG')
-        
-        # Move to uploads directory for serving
-        uploads_dir = Path("uploads/composites")
-        uploads_dir.mkdir(parents=True, exist_ok=True)
-        
-        final_path = uploads_dir / composite_filename
-        composited.save(final_path, 'PNG')
-        
-        # Upload to Firebase Storage for permanent public URL
+
+        # Upload to Firebase Storage
         print(f"[Product Composite] Uploading composite to Firebase Storage...")
         try:
             from app.services.firebase_storage_service import get_firebase_storage_service
             storage_service = get_firebase_storage_service()
-            
-            if storage_service:
-                firebase_url = storage_service.upload_image(final_path, folder="composites")
-                if firebase_url:
-                    print(f"[Product Composite] ✓ Composite uploaded to Firebase Storage")
-                    logger.info(f"Composite uploaded to Firebase Storage: {firebase_url}")
-                    return firebase_url
+
+            if not storage_service:
+                raise ValueError("Firebase Storage not configured")
+
+            firebase_url = storage_service.upload_image(composite_path, folder="composites")
+
+            # Clean up temp file
+            composite_path.unlink()
+
+            if not firebase_url:
+                raise ValueError("Failed to upload to Firebase Storage")
+
+            print(f"[Product Composite] ✓ Composite uploaded to Firebase Storage")
+            logger.info(f"Composite uploaded to Firebase Storage: {firebase_url}")
+            return firebase_url
+
         except Exception as e:
-            logger.warning(f"Failed to upload composite to Firebase Storage: {e}")
-            print(f"[Product Composite] ⚠️  Firebase upload failed: {e}")
-        
-        # Fallback to local URL if Firebase upload fails or not configured
-        print(f"[Product Composite] Using local URL (Firebase not available)")
-        return f"/uploads/composites/{composite_filename}"
+            # Clean up temp file
+            if composite_path.exists():
+                composite_path.unlink()
+            logger.error(f"Failed to upload composite to Firebase Storage: {e}")
+            print(f"[Product Composite] ❌ Firebase upload failed: {e}")
+            raise
     
     def _composite_product_centered(
         self,
@@ -767,53 +768,42 @@ class ReplicateImageService:
     
     async def _upload_temp_image(self, image_path: str) -> str:
         """
-        Upload image to temporary storage and return public URL.
-        
+        Upload image to Firebase Storage and return public URL.
+
         Fallback method when base64 encoding fails or isn't supported.
-        
+
         Args:
             image_path: Path to image file
-        
+
         Returns:
             Publicly accessible URL to image
         """
-        # Create temp uploads directory
-        temp_dir = Path("uploads/temp")
-        temp_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Generate unique filename
-        filename = f"temp_{uuid.uuid4()}{Path(image_path).suffix}"
-        temp_path = temp_dir / filename
-        
-        # Copy file to temp location
-        shutil.copy2(image_path, temp_path)
-        
-        # Schedule cleanup (1 hour)
-        # Note: In production, use a task queue or cron job
-        asyncio.create_task(self._cleanup_temp_file(temp_path, delay=3600))
-        
-        # Return URL (assumes FastAPI serves /uploads/)
-        url = f"/uploads/temp/{filename}"
-        print(f"[Image Upload] Uploaded to temp storage: {url}")
-        
-        return url
+        print(f"[Image Upload] Uploading to Firebase Storage...")
+        try:
+            from app.services.firebase_storage_service import get_firebase_storage_service
+            storage_service = get_firebase_storage_service()
+
+            if not storage_service:
+                raise ValueError("Firebase Storage not configured")
+
+            firebase_url = storage_service.upload_image(Path(image_path), folder="temp")
+
+            if not firebase_url:
+                raise ValueError("Failed to upload to Firebase Storage")
+
+            print(f"[Image Upload] ✓ Uploaded to Firebase Storage: {firebase_url}")
+            return firebase_url
+
+        except Exception as e:
+            logger.error(f"Failed to upload to Firebase Storage: {e}")
+            print(f"[Image Upload] ❌ Firebase upload failed: {e}")
+            raise
     
     async def _cleanup_temp_file(self, file_path: Path, delay: int = 3600):
         """
-        Delete temporary file after delay.
-        
-        Args:
-            file_path: Path to file to delete
-            delay: Delay in seconds before deletion (default 1 hour)
+        Cleanup function (deprecated - no longer needed with Firebase Storage).
         """
-        await asyncio.sleep(delay)
-        
-        try:
-            if file_path.exists():
-                file_path.unlink()
-                print(f"[Cleanup] Deleted temp file: {file_path}")
-        except Exception as e:
-            print(f"[Cleanup] Failed to delete temp file {file_path}: {e}")
+        pass
     
     async def generate_scene_with_kontext_composite(
         self,
@@ -939,19 +929,35 @@ Ensure the product appears as part of the original scene."""
                 raise Exception(f"Failed to download composite: {response.status_code}")
             
             composite_image = Image.open(io.BytesIO(response.content))
-            
-            # Save to uploads directory
-            uploads_dir = Path("uploads/composites")
-            uploads_dir.mkdir(parents=True, exist_ok=True)
-            
+
+            # Save to temp file for Firebase upload
+            temp_dir = Path(tempfile.gettempdir()) / "kontext_composites"
+            temp_dir.mkdir(exist_ok=True)
+
             composite_filename = f"kontext_{uuid.uuid4()}.png"
-            final_path = uploads_dir / composite_filename
-            
-            composite_image.save(final_path, 'PNG')
-            
-            # Return URL
-            final_url = f"/uploads/composites/{composite_filename}"
-            print(f"[Kontext Composite] Composite saved: {final_url}")
+            temp_path = temp_dir / composite_filename
+
+            composite_image.save(temp_path, 'PNG')
+
+            # Upload to Firebase Storage
+            from app.services.firebase_storage_service import get_firebase_storage_service
+            storage_service = get_firebase_storage_service()
+
+            if not storage_service:
+                temp_path.unlink()
+                raise ValueError("Firebase Storage not configured")
+
+            firebase_url = storage_service.upload_image(temp_path, folder="composites")
+
+            # Clean up temp file
+            temp_path.unlink()
+
+            if not firebase_url:
+                raise ValueError("Failed to upload to Firebase Storage")
+
+            # Return Firebase URL
+            final_url = firebase_url
+            print(f"[Kontext Composite] Composite uploaded to Firebase: {final_url}")
             
             # Record success
             duration = time.time() - start_time

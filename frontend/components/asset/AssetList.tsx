@@ -13,7 +13,6 @@ interface AssetListProps {
   refreshTrigger?: number;
   listFn: (userId: string) => Promise<AssetStatus[]>;
   deleteFn: (assetId: string, userId: string) => Promise<void>;
-  getImageUrl: (assetId: string, userId: string, thumbnail: boolean) => string;
 }
 
 export function AssetList({
@@ -24,7 +23,6 @@ export function AssetList({
   refreshTrigger,
   listFn,
   deleteFn,
-  getImageUrl,
 }: AssetListProps) {
   const { userId } = useFirebaseAuth();
   const [assets, setAssets] = useState<AssetStatus[]>([]);
@@ -144,9 +142,9 @@ export function AssetList({
                 className="border rounded-lg p-3 hover:shadow-md transition-shadow"
               >
                 <div className="relative w-full aspect-square mb-3 bg-gray-50 rounded min-h-[300px]">
-                  {userId && (
+                  {asset.public_url && (
                     <Image
-                      src={getImageUrl(asset.asset_id, userId, false)}
+                      src={asset.public_url}
                       alt={asset.metadata.filename || `${assetType} asset`}
                       fill
                       className="object-contain rounded"

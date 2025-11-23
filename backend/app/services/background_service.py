@@ -91,9 +91,9 @@ class BackgroundAssetService(BaseAssetService):
                 response.raise_for_status()
                 image_data = response.content
                 
-                # Save as asset
+                # Save as asset with user_id if provided
                 filename = f"background-{idx + 1}.png"
-                asset_response = self.save_asset(image_data, filename)
+                asset_response = self.save_asset(image_data, filename, user_id=brief.user_id)
                 
                 # Convert to status
                 asset_status = self.get_asset(asset_response.asset_id)

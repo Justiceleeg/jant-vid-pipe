@@ -5,7 +5,6 @@ import Image from 'next/image';
 import { useFirebaseAuth } from '@/lib/firebase/AuthContext';
 import { Checkbox } from '@/components/ui/checkbox';
 import type { BackgroundAssetStatus } from '@/types/background.types';
-import { getBackgroundImageUrl } from '@/lib/api/background';
 
 interface BackgroundGalleryProps {
   backgrounds: BackgroundAssetStatus[];
@@ -54,9 +53,9 @@ export function BackgroundGallery({
             `}
             onClick={() => onSelect(background.asset_id, !isSelected)}
           >
-            {userId && (
+            {background.public_url && (
               <Image
-                src={getBackgroundImageUrl(background.asset_id, userId, false)}
+                src={background.public_url}
                 alt={`Background ${background.asset_id}`}
                 fill
                 className="object-cover"

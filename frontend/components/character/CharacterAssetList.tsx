@@ -1,6 +1,6 @@
 'use client';
 
-import { listCharacterAssets, deleteCharacterAsset, getCharacterAssetImageUrl } from '@/lib/api/character';
+import { listCharacterAssets, deleteCharacterAsset } from '@/lib/api/character';
 import { AssetList } from '@/components/asset/AssetList';
 
 interface CharacterAssetListProps {
@@ -18,7 +18,6 @@ export function CharacterAssetList({ onAssetDeleted, refreshTrigger }: Character
       refreshTrigger={refreshTrigger}
       listFn={listCharacterAssets}
       deleteFn={deleteCharacterAsset}
-      getImageUrl={getCharacterAssetImageUrl}
     />
   );
 }

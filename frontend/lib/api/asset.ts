@@ -118,6 +118,32 @@ export async function deleteAsset(apiPrefix: string, assetId: string, userId: st
   }
 }
 
+/**
+ * Get asset image URL from asset data.
+ * Returns the Firebase Storage URL directly from the asset object.
+ *
+ * @param asset - The asset object containing Firebase Storage URLs
+ * @param thumbnail - Whether to get the thumbnail URL (default: false)
+ * @returns The Firebase Storage URL
+ */
+export function getAssetImageUrlFromData(asset: AssetStatus, thumbnail: boolean = false): string {
+  const url = thumbnail ? asset.public_thumbnail_url : asset.public_url;
+  if (!url) {
+    throw new Error('Asset does not have a Firebase Storage URL');
+  }
+  return url;
+}
+
+/**
+ * DEPRECATED: This constructs a local backend URL, but we use Firebase Storage now.
+ *
+ * This function is kept for backward compatibility but will not work properly.
+ * Components should instead:
+ * 1. Fetch the asset using getAsset() or listAssets()
+ * 2. Use asset.public_url or asset.public_thumbnail_url directly in img src
+ *
+ * Or use the getAssetImageUrlFromData() helper function.
+ */
 export function getAssetImageUrl(apiPrefix: string, assetId: string, userId: string, thumbnail: boolean = false): string {
   if (!userId) {
     throw new Error('User ID is required to access asset images');

@@ -1,7 +1,6 @@
 'use client';
 
 import Image from 'next/image';
-import { useFirebaseAuth } from '@/lib/firebase/AuthContext';
 import type { AssetStatus } from '@/types/asset.types';
 import { cn } from '@/lib/utils';
 
@@ -13,7 +12,6 @@ interface AssetSelectionStepProps {
   onBack?: () => void;
   isLoading: boolean;
   assets: AssetStatus[];
-  getImageUrl: (assetId: string, userId: string, thumbnail: boolean) => string;
 }
 
 export function AssetSelectionStep({
@@ -24,9 +22,7 @@ export function AssetSelectionStep({
   onBack,
   isLoading,
   assets,
-  getImageUrl,
 }: AssetSelectionStepProps) {
-  const { userId } = useFirebaseAuth();
   const assetTypeLabel = assetType === 'brand' ? 'Brand' : 'Character';
   const isRequired = true; // Both are required
   const hasSelection = selectedIds.length > 0;
@@ -92,10 +88,10 @@ export function AssetSelectionStep({
               )}
               onClick={() => handleToggleAsset(asset.asset_id)}
             >
-              <div className="relative w-full aspect-square mb-2 bg-muted rounded overflow-hidden">
-                {userId && (
+              <div className="relative w-full aspect-square mb-2 bg-muted rounded overflow-hidden min-h-[200px]">
+                {asset.public_url && (
                   <Image
-                    src={getImageUrl(asset.asset_id, userId, false)}
+                    src={asset.public_url}
                     alt={asset.metadata.filename || `${assetTypeLabel} asset`}
                     fill
                     className="object-cover rounded"
