@@ -690,8 +690,10 @@ function ScenesPageContent() {
           totalScenes={scenes.length}
           totalVideoDuration={scenes.reduce((total, scene) => {
             // Calculate effective duration: trimmed if trim times exist, otherwise original
-            const effectiveDuration = (scene.trim_start_time !== null && scene.trim_end_time !== null)
-              ? scene.trim_end_time - scene.trim_start_time
+            const startTime = scene.trim_start_time;
+            const endTime = scene.trim_end_time;
+            const effectiveDuration = (startTime != null && endTime != null)
+              ? endTime - startTime
               : (scene.video_duration || 0);
             return total + effectiveDuration;
           }, 0)}

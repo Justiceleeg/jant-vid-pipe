@@ -94,6 +94,7 @@ export function FinalComposition({ onBack }: FinalCompositionProps) {
     creativeBrief,
     selectedMoodId,
     moods,
+    setFinalVideo,
   } = useAppStore();
   
   // Get storyboard scenes with videos
