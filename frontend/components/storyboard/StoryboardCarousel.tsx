@@ -29,7 +29,7 @@ interface StoryboardCarouselProps {
   audioUrl?: string | null;
   isGeneratingAudio?: boolean;
   onRegenerateAudio?: () => Promise<void>;
-  audioRef?: React.RefObject<HTMLAudioElement>;
+  audioRef?: React.RefObject<HTMLAudioElement | null>;
   canGenerateAudio?: boolean;
   // Final video generation props
   allScenesReady?: boolean;
