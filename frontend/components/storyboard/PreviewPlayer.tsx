@@ -60,8 +60,10 @@ export function PreviewPlayer({ scenes, sceneOrder, isOpen, onClose }: PreviewPl
         try {
           new URL(scene.video_url);
           // Calculate effective duration: trimmed if trim times exist, otherwise original
-          const effectiveDuration = (scene.trim_start_time !== null && scene.trim_end_time !== null)
-            ? scene.trim_end_time - scene.trim_start_time
+          const startTime = scene.trim_start_time;
+          const endTime = scene.trim_end_time;
+          const effectiveDuration = (startTime != null && endTime != null)
+            ? endTime - startTime
             : scene.video_duration;
           return {
             scene_id: scene.id,
