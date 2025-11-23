@@ -52,13 +52,19 @@ def _initialize_firebase():
         if not bucket_name:
             logger.error("Firebase storage bucket name could not be determined")
             return False
-        
-        # Initialize app with storage bucket
-        _firebase_app = firebase_admin.initialize_app(cred, {
-            'storageBucket': bucket_name
-        })
-        
-        _storage_bucket = storage.bucket()
+
+        # Initialize app with storage bucket (or use existing app)
+        try:
+            _firebase_app = firebase_admin.get_app()
+            logger.info("Using existing Firebase app instance")
+            # When using existing app, must specify bucket name explicitly
+            _storage_bucket = storage.bucket(bucket_name)
+        except ValueError:
+            # App doesn't exist yet, initialize it
+            _firebase_app = firebase_admin.initialize_app(cred, {
+                'storageBucket': bucket_name
+            })
+            _storage_bucket = storage.bucket()
         
         logger.info(f"Firebase Storage initialized with bucket: {bucket_name}")
         print(f"[Firebase Storage] ✓ Initialized with bucket: {bucket_name}")
