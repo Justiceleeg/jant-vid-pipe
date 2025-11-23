@@ -18,6 +18,7 @@ class BackgroundGenerationRequest(BaseModel):
     emotional_tone: List[str] = Field(default_factory=list, description="List of emotional tones")
     visual_style_keywords: List[str] = Field(default_factory=list, description="List of visual style keywords")
     key_messages: List[str] = Field(default_factory=list, description="List of key messages")
+    user_id: Optional[str] = Field(None, description="User ID for asset ownership")
 
 
 class BackgroundGenerationResponse(BaseModel):

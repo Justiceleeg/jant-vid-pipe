@@ -23,26 +23,19 @@ async def upload_product_image(
 ):
     """
     Upload a single product image.
-    
+
     **Requirements:**
     - Single PNG or JPG image
     - Max file size: 50MB
     - Min resolution: 512×512
     - Max resolution: 4096×4096
-    
+
     **Returns:**
     - product_id: UUID for the uploaded product
-    - url: URL to access the full image
-    - thumbnail_url: URL to access 512×512 thumbnail
+    - url: URL to access the full image (Firebase Storage)
+    - thumbnail_url: URL to access 512×512 thumbnail (Firebase Storage)
     - metadata: Image information
     """
-    # Check if product mode is enabled
-    if not settings.is_product_mode():
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Product upload is not available. Set UPLOAD_MODE=product"
-        )
-    
     # Validate file
     if not file:
         raise HTTPException(

@@ -1,9 +1,0 @@
-# Ignore all NeRF processing outputs
-models/*
-renders/*
-
-# Keep directory structure
-!.gitignore
-!models/.gitkeep
-!renders/.gitkeep
-
