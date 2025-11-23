@@ -606,9 +606,9 @@ function ScenesPageContent() {
   }
 
   return (
-    <div className="pt-[calc(3.5rem+1rem)] h-[calc(100vh-3.5rem)] flex flex-col overflow-hidden animate-fadeIn">
+    <div className="h-screen flex flex-col overflow-hidden animate-fadeIn">
       {/* Top bar with Title */}
-      <div className="w-full flex justify-center px-4 sm:px-6 lg:px-8 mb-2 flex-shrink-0">
+      <div className="w-full flex justify-center px-4 sm:px-6 lg:px-8 pt-[calc(3.5rem+1rem)] pb-2 flex-shrink-0">
         <div className="w-full max-w-7xl flex items-center justify-between">
           {/* Title - centered (spacer on left for balance) */}
           <div className="flex-1"></div>
