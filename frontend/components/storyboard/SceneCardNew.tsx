@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import type { StoryboardScene } from '@/types/storyboard.types';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import { config } from '@/lib/config';
 import { useAppStore } from '@/store/appStore';
 import { useSceneStore } from '@/store/sceneStore';
 import { SceneAssetToggleSection } from './SceneAssetToggleSection';
+import { VideoTrimmerOverlay } from './VideoTrimmerOverlay';
 
 interface SceneCardNewProps {
   scene: StoryboardScene;
@@ -42,6 +43,26 @@ export function SceneCardNew({
   const [showDurationConfirm, setShowDurationConfirm] = useState(false);
   const [showRegenerateImageConfirm, setShowRegenerateImageConfirm] = useState(false);
   const [pendingDuration, setPendingDuration] = useState<number | null>(null);
+  // Show trimmer by default when video is available
+  const [isTrimming, setIsTrimming] = useState(false);
+  const [localTrimStart, setLocalTrimStart] = useState<number | null>(scene.trim_start_time ?? null);
+  const [localTrimEnd, setLocalTrimEnd] = useState<number | null>(scene.trim_end_time ?? null);
+  const [actualVideoDuration, setActualVideoDuration] = useState<number>(scene.video_duration);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Define derived state values
+  const isGeneratingImage = scene.generation_status.image === 'generating';
+  const isGeneratingVideo = scene.generation_status.video === 'generating';
+  const hasError = !!scene.error_message;
+
+  // Auto-show trimmer when video is available and complete
+  useEffect(() => {
+    if (scene.state === 'video' && scene.video_url && scene.generation_status.video === 'complete' && !isGeneratingVideo) {
+      setIsTrimming(true);
+    } else {
+      setIsTrimming(false);
+    }
+  }, [scene.state, scene.video_url, scene.generation_status.video, isGeneratingVideo]);
 
   // Handle text edit with warning
   const handleEditTextClick = () => {
@@ -117,9 +138,65 @@ export function SceneCardNew({
     }
   };
 
-  const isGeneratingImage = scene.generation_status.image === 'generating';
-  const isGeneratingVideo = scene.generation_status.video === 'generating';
-  const hasError = !!scene.error_message;
+  // Get actual video duration from video element
+  useEffect(() => {
+    if (videoRef.current && scene.video_url) {
+      const video = videoRef.current;
+      const handleLoadedMetadata = () => {
+        setActualVideoDuration(video.duration);
+      };
+      video.addEventListener('loadedmetadata', handleLoadedMetadata);
+      if (video.duration) {
+        setActualVideoDuration(video.duration);
+      }
+      return () => {
+        video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      };
+    }
+  }, [scene.video_url]);
+
+  // Sync trim times from scene
+  useEffect(() => {
+    setLocalTrimStart(scene.trim_start_time ?? null);
+    setLocalTrimEnd(scene.trim_end_time ?? null);
+  }, [scene.trim_start_time, scene.trim_end_time]);
+
+  // Handle trim change - auto-save immediately
+  const handleTrimChange = async (startTime: number, endTime: number) => {
+    // Clamp endTime to not exceed actual video duration to avoid precision errors
+    const clampedEndTime = Math.min(endTime, actualVideoDuration);
+    
+    setLocalTrimStart(startTime);
+    setLocalTrimEnd(clampedEndTime);
+    
+    // Optimistically update the store immediately so total duration updates in real-time
+    const { updateScene } = useSceneStore.getState();
+    updateScene(scene.id, {
+      trim_start_time: startTime,
+      trim_end_time: clampedEndTime,
+    });
+    
+    // Auto-save trim changes
+    try {
+      const { updateSceneTrim } = useSceneStore.getState();
+      await updateSceneTrim(scene.id, startTime, clampedEndTime);
+    } catch (error) {
+      console.error('Failed to save trim:', error);
+      // Error is handled by store
+      // On error, revert to previous trim times
+      updateScene(scene.id, {
+        trim_start_time: scene.trim_start_time,
+        trim_end_time: scene.trim_end_time,
+      });
+      setLocalTrimStart(scene.trim_start_time ?? null);
+      setLocalTrimEnd(scene.trim_end_time ?? null);
+    }
+  };
+
+  // Calculate effective duration (trimmed or original)
+  const effectiveDuration = (localTrimStart !== null && localTrimEnd !== null)
+    ? localTrimEnd - localTrimStart
+    : scene.video_duration;
 
   return (
     <div className="w-full h-full bg-card border border-border rounded-lg overflow-hidden flex flex-col">
@@ -356,27 +433,43 @@ export function SceneCardNew({
         {/* VIDEO STATE */}
         {scene.state === 'video' && (
           <div className="flex-1 min-h-0 flex gap-4">
-            {/* Left: Video player - 2/3 width */}
-            <div className="w-2/3 flex-shrink-0 relative rounded-lg overflow-hidden flex items-center justify-center bg-black border border-border">
-              {isGeneratingVideo ? (
-                <div className="w-full h-full flex flex-col items-center justify-center bg-white dark:bg-zinc-900 text-black dark:text-white">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black dark:border-white mb-4"></div>
-                  <p className="text-sm">Generating video...</p>
-                  <p className="text-xs text-black/60 dark:text-white/60 mt-2">This may take up to 2 minutes</p>
-                </div>
-              ) : scene.video_url ? (
-                <video
-                  src={scene.video_url}
-                  controls
-                  className="w-full h-full object-contain"
-                  poster={scene.image_url || undefined}
-                >
-                  Your browser does not support the video tag.
-                </video>
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-white">
-                  <p>No video generated</p>
-                </div>
+            {/* Left: Video player with trimmer below - 2/3 width */}
+            <div className="w-2/3 flex-shrink-0 flex flex-col gap-2">
+              {/* Video container - takes most space, trimmer below */}
+              <div className="flex-1 min-h-0 relative rounded-lg overflow-hidden flex items-center justify-center bg-black border border-border">
+                {isGeneratingVideo ? (
+                  <div className="w-full h-full flex flex-col items-center justify-center bg-white dark:bg-zinc-900 text-black dark:text-white">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black dark:border-white mb-4"></div>
+                    <p className="text-sm">Generating video...</p>
+                    <p className="text-xs text-black/60 dark:text-white/60 mt-2">This may take up to 2 minutes</p>
+                  </div>
+                ) : scene.video_url ? (
+                  <video
+                    ref={videoRef}
+                    src={scene.video_url}
+                    controls
+                    className="w-full h-full object-contain"
+                    poster={scene.image_url || undefined}
+                  >
+                    Your browser does not support the video tag.
+                  </video>
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-white">
+                    <p>No video generated</p>
+                  </div>
+                )}
+              </div>
+              {/* Trimmer below video */}
+              {isTrimming && scene.video_url && (
+                <VideoTrimmerOverlay
+                  videoElement={videoRef.current}
+                  originalDuration={actualVideoDuration}
+                  trimStartTime={localTrimStart}
+                  trimEndTime={localTrimEnd}
+                  onTrimChange={handleTrimChange}
+                  isVisible={isTrimming}
+                  disabled={isLoading}
+                />
               )}
             </div>
 
@@ -422,7 +515,14 @@ export function SceneCardNew({
                 <div className="flex justify-center">
                   <div className="w-3/5 flex items-center justify-between">
                     <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Video Duration</h4>
-                    <span className="text-base font-semibold tabular-nums">{duration.toFixed(1)}s</span>
+                    <div className="flex flex-col items-end">
+                      <span className="text-base font-semibold tabular-nums">{duration.toFixed(1)}s</span>
+                      {localTrimStart !== null && localTrimEnd !== null && (
+                        <span className="text-xs text-primary tabular-nums">
+                          Trimmed: {effectiveDuration.toFixed(1)}s
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <div className="flex justify-center">

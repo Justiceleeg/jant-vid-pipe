@@ -225,6 +225,34 @@ function ScenesPageContent() {
     }
   }, [error, storyboard, addToast]);
 
+  // Show toast for video generation errors from scenes
+  const shownErrorRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    scenes.forEach((scene) => {
+      // Check if scene has a video error that hasn't been shown yet
+      if (
+        scene.error_message &&
+        scene.generation_status.video === 'error' &&
+        !shownErrorRef.current.has(scene.id)
+      ) {
+        // Mark this error as shown
+        shownErrorRef.current.add(scene.id);
+        
+        // Show toast notification
+        addToast({
+          type: 'error',
+          message: scene.error_message,
+          duration: 5000,
+        });
+      }
+      
+      // Remove from shown errors if error is cleared
+      if (!scene.error_message && shownErrorRef.current.has(scene.id)) {
+        shownErrorRef.current.delete(scene.id);
+      }
+    });
+  }, [scenes, addToast]);
+
   // Track failed storyboard loads to prevent endless retries
   const failedStoryboardIdsRef = useRef<Set<string>>(new Set());
   const initializationAttemptedRef = useRef<string | null>(null);
@@ -668,7 +696,13 @@ function ScenesPageContent() {
           allScenesReady={scenes.every(scene => scene.state === 'video' && scene.generation_status.video === 'complete')}
           readyCount={scenes.filter(scene => scene.state === 'video' && scene.generation_status.video === 'complete').length}
           totalScenes={scenes.length}
-          totalVideoDuration={scenes.reduce((total, scene) => total + (scene.video_duration || 0), 0)}
+          totalVideoDuration={scenes.reduce((total, scene) => {
+            // Calculate effective duration: trimmed if trim times exist, otherwise original
+            const effectiveDuration = (scene.trim_start_time !== null && scene.trim_end_time !== null)
+              ? scene.trim_end_time - scene.trim_start_time
+              : (scene.video_duration || 0);
+            return total + effectiveDuration;
+          }, 0)}
           isRegeneratingAll={isRegeneratingAll}
         />
       </div>

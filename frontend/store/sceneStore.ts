@@ -42,6 +42,7 @@ interface SceneState {
   approveImage: (sceneId: string) => Promise<void>;
   regenerateImage: (sceneId: string) => Promise<void>;
   updateDuration: (sceneId: string, newDuration: number) => Promise<void>;
+  updateSceneTrim: (sceneId: string, trimStartTime: number | null, trimEndTime: number | null) => Promise<void>;
   regenerateVideo: (sceneId: string) => Promise<void>;
   
   // Actions - Scene management
@@ -447,6 +448,36 @@ export const useSceneStore = create<SceneState>((set, get) => ({
           throw new StoryboardError(
             errorMessage,
             ERROR_CODES.SCENE_DURATION_UPDATE_FAILED,
+            true,
+            sceneId
+          );
+        }
+      },
+
+      // Update scene trim times
+      updateSceneTrim: async (sceneId, trimStartTime, trimEndTime) => {
+        set({ error: null });
+        try {
+          const storyboard = get().storyboard;
+          if (!storyboard) {
+            throw new Error('No storyboard loaded');
+          }
+          const updatedScene = await retryOperation(
+            () => storyboardAPI.updateSceneTrim(storyboard.storyboard_id, sceneId, trimStartTime, trimEndTime),
+            {
+              maxRetries: 2,
+              operationName: 'Update Scene Trim',
+            }
+          );
+          get().updateScene(sceneId, updatedScene);
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Failed to update trim times';
+          set({
+            error: errorMessage,
+          });
+          throw new StoryboardError(
+            errorMessage,
+            ERROR_CODES.SCENE_DURATION_UPDATE_FAILED, // Reuse this error code
             true,
             sceneId
           );
