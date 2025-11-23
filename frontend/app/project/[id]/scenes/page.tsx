@@ -386,14 +386,17 @@ function ScenesPageContent() {
   };
 
   const handleRegenerateImage = async (sceneId: string) => {
+    console.log('[ScenesPage] handleRegenerateImage called for scene:', sceneId);
     try {
       await regenerateImage(sceneId);
+      console.log('[ScenesPage] Image regeneration started successfully');
       addToast({
         type: 'success',
         message: 'Image regeneration started',
         duration: 3000,
       });
     } catch (error) {
+      console.error('[ScenesPage] Failed to regenerate image:', error);
       addToast({
         type: 'error',
         message: error instanceof Error ? error.message : 'Failed to regenerate image',

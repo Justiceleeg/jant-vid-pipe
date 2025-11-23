@@ -1300,17 +1300,33 @@ async def regenerate_scene_image(
                 detail=f"Scene {scene_id} not found"
             )
 
-        # Cancel existing prediction if any
+        # Cancel existing image prediction if any
         if scene.replicate_image_prediction_id:
-            print(f"[Image Regeneration] Canceling existing prediction: {scene.replicate_image_prediction_id}")
+            print(f"[Image Regeneration] Canceling existing image prediction: {scene.replicate_image_prediction_id}")
             from app.services.replicate_service import get_replicate_service
             replicate_service = get_replicate_service()
             await replicate_service.cancel_prediction(scene.replicate_image_prediction_id)
             scene.replicate_image_prediction_id = None
 
+        # Cancel existing video prediction if any (video depends on image, so it must be cleared)
+        if scene.replicate_video_prediction_id:
+            print(f"[Image Regeneration] Canceling existing video prediction: {scene.replicate_video_prediction_id}")
+            from app.services.replicate_service import get_replicate_service
+            replicate_service = get_replicate_service()
+            await replicate_service.cancel_prediction(scene.replicate_video_prediction_id)
+            scene.replicate_video_prediction_id = None
+
         # Reset image state
         scene.image_url = None
         scene.generation_status.image = "generating"
+        
+        # Reset video state (video depends on image, so it must be cleared when regenerating image)
+        scene.video_url = None
+        scene.generation_status.video = "pending"
+        scene.state = "image"  # Reset state back to image since video is cleared
+        scene.trim_start_time = None
+        scene.trim_end_time = None
+        
         db.update_scene(scene_id, scene)
 
         # Start image generation in background

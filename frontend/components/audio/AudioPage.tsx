@@ -106,7 +106,7 @@ export function AudioPage() {
   // Show loading state while rendering
   if (isRenderingVideo || !renderedVideoUrl) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-6">
+      <div className="w-full h-full flex flex-col items-center justify-center space-y-6">
         <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
         <div className="text-center space-y-2">
           <h3 className="text-lg font-semibold">Rendering Your Video</h3>
@@ -124,84 +124,86 @@ export function AudioPage() {
     : `${API_URL}${renderedVideoUrl}`;
 
   return (
-    <div className="w-full max-w-4xl space-y-6">
-      {/* Rendered Video Display */}
-      <div className="bg-card border rounded-lg p-6 space-y-4">
-        <h3 className="text-lg font-semibold">Your Rendered Video</h3>
-        <div className="aspect-video bg-black rounded-lg overflow-hidden">
-          <video
-            src={videoUrl}
-            controls
-            className="w-full h-full"
-            preload="metadata"
-          >
-            Your browser does not support the video tag.
-          </video>
+    <div className="w-full max-w-4xl h-full flex flex-col min-h-0 overflow-y-auto">
+      <div className="flex-1 flex flex-col justify-center space-y-6 py-4">
+        {/* Rendered Video Display */}
+        <div className="bg-card border rounded-lg p-6 space-y-4 flex-shrink-0">
+          <h3 className="text-lg font-semibold">Your Rendered Video</h3>
+          <div className="aspect-video bg-black rounded-lg overflow-hidden">
+            <video
+              src={videoUrl}
+              controls
+              className="w-full h-full"
+              preload="metadata"
+            >
+              Your browser does not support the video tag.
+            </video>
+          </div>
+          <p className="text-sm text-muted-foreground text-center">
+            Duration: {renderedVideoDuration ? `${renderedVideoDuration.toFixed(1)}s` : 'Unknown'}
+          </p>
         </div>
-        <p className="text-sm text-muted-foreground text-center">
-          Duration: {renderedVideoDuration ? `${renderedVideoDuration.toFixed(1)}s` : 'Unknown'}
-        </p>
-      </div>
 
-      {/* Audio Options */}
-      <div className="bg-card border rounded-lg p-6 space-y-4">
-        <h3 className="text-lg font-semibold">Would you like to add audio to this video?</h3>
-        <p className="text-sm text-muted-foreground">
-          Generate background music that matches your video's mood and duration.
-        </p>
+        {/* Audio Options */}
+        <div className="bg-card border rounded-lg p-6 space-y-4 flex-shrink-0">
+          <h3 className="text-lg font-semibold">Would you like to add audio to this video?</h3>
+          <p className="text-sm text-muted-foreground">
+            Generate background music that matches your video's mood and duration.
+          </p>
 
-        {/* Error State */}
-        {hasError && (
-          <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 space-y-3">
-            <p className="text-sm text-destructive font-medium">Audio generation failed</p>
-            <div className="flex gap-2">
-              <Button
-                onClick={handleRetryAudio}
-                disabled={isGeneratingAudio}
-                variant="outline"
-                size="sm"
-              >
-                Retry
-              </Button>
+          {/* Error State */}
+          {hasError && (
+            <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 space-y-3">
+              <p className="text-sm text-destructive font-medium">Audio generation failed</p>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleRetryAudio}
+                  disabled={isGeneratingAudio}
+                  variant="outline"
+                  size="sm"
+                >
+                  Retry
+                </Button>
+                <Button
+                  onClick={handleSkipAudio}
+                  variant="outline"
+                  size="sm"
+                >
+                  Skip Audio
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          {!hasError && (
+            <div className="flex gap-4 justify-center pt-4">
               <Button
                 onClick={handleSkipAudio}
                 variant="outline"
-                size="sm"
+                size="lg"
+                disabled={isGeneratingAudio}
               >
                 Skip Audio
               </Button>
+              <Button
+                onClick={handleGenerateAudio}
+                size="lg"
+                disabled={isGeneratingAudio}
+                className="bg-[rgb(255,81,1)] text-[rgb(196,230,43)] hover:bg-[rgb(255,100,20)]"
+              >
+                {isGeneratingAudio ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-[rgb(196,230,43)] border-t-transparent rounded-full animate-spin mr-2" />
+                    Generating Audio...
+                  </>
+                ) : (
+                  'Generate Audio'
+                )}
+              </Button>
             </div>
-          </div>
-        )}
-
-        {/* Action Buttons */}
-        {!hasError && (
-          <div className="flex gap-4 justify-center pt-4">
-            <Button
-              onClick={handleSkipAudio}
-              variant="outline"
-              size="lg"
-              disabled={isGeneratingAudio}
-            >
-              Skip Audio
-            </Button>
-            <Button
-              onClick={handleGenerateAudio}
-              size="lg"
-              disabled={isGeneratingAudio}
-              className="bg-[rgb(255,81,1)] text-[rgb(196,230,43)] hover:bg-[rgb(255,100,20)]"
-            >
-              {isGeneratingAudio ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-[rgb(196,230,43)] border-t-transparent rounded-full animate-spin mr-2" />
-                  Generating Audio...
-                </>
-              ) : (
-                'Generate Audio'
-              )}
-            </Button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
