@@ -45,7 +45,14 @@ export const VideoGeneration = lazy(() =>
   }))
 );
 
-// Step 5: Final Composition
+// Step 5: Audio Page
+export const AudioPage = lazy(() =>
+  import('@/components/audio/AudioPage').then((module) => ({
+    default: module.AudioPage,
+  }))
+);
+
+// Step 6: Final Composition
 export const FinalComposition = lazy(() =>
   import('@/components/composition/FinalComposition').then((module) => ({
     default: module.FinalComposition,

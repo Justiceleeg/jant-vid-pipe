@@ -89,6 +89,8 @@ export function FinalComposition({ onBack }: FinalCompositionProps) {
   const {
     audioUrl,
     finalVideo,
+    renderedVideoUrl,
+    renderedVideoDuration,
     creativeBrief,
     selectedMoodId,
     moods,
@@ -112,7 +114,54 @@ export function FinalComposition({ onBack }: FinalCompositionProps) {
   });
 
   const handleStartComposition = async () => {
-    // Convert storyboard scenes to video clips
+    // If rendered video exists, use it (with or without audio)
+    if (renderedVideoUrl) {
+      console.log('📹 Using rendered video:', renderedVideoUrl);
+      setHasStarted(true);
+      setCurrentPhase('composition');
+
+      // If audio exists, compose rendered video with audio
+      if (audioUrl) {
+        console.log('🎵 Adding audio to rendered video...');
+        try {
+          // Use rendered video as a single clip with audio
+          const request: CompositionRequest = {
+            clips: [{
+              scene_number: 1,
+              video_url: renderedVideoUrl,
+              duration: renderedVideoDuration || 0,
+            }],
+            audio_url: audioUrl,
+            include_crossfade: false,
+            optimize_size: true,
+            target_size_mb: 50,
+          };
+
+          await composeVideo(request);
+        } catch (error) {
+          console.error('❌ Failed to add audio to rendered video:', error);
+          // Fall back to showing rendered video without audio
+          setFinalVideo({
+            video_url: renderedVideoUrl,
+            duration_seconds: renderedVideoDuration || 0,
+            file_size_mb: null,
+          });
+          setCurrentPhase('complete');
+        }
+      } else {
+        // No audio, use rendered video as-is
+        console.log('📹 Using rendered video without audio');
+        setFinalVideo({
+          video_url: renderedVideoUrl,
+          duration_seconds: renderedVideoDuration || 0,
+          file_size_mb: null,
+        });
+        setCurrentPhase('complete');
+      }
+      return;
+    }
+
+    // Fall back to original behavior: compose from clips
     const videoScenes = scenes.filter(scene => 
       scene.state === 'video' && 
       scene.video_url && 
@@ -139,14 +188,13 @@ export function FinalComposition({ onBack }: FinalCompositionProps) {
     setHasStarted(true);
 
     try {
-      // Use audio from storyboard (generated earlier in mood step or storyboard page)
       console.log('🎬 Starting video composition...');
       console.log('🎵 Audio URL from store:', audioUrl);
       setCurrentPhase('composition');
 
       const request: CompositionRequest = {
-        clips: clips,  // Use the clips we prepared from storyboard scenes
-        audio_url: audioUrl || undefined,  // Use audio from storyboard
+        clips: clips,
+        audio_url: audioUrl || undefined,
         include_crossfade: false,
         optimize_size: true,
         target_size_mb: 50,
@@ -160,7 +208,6 @@ export function FinalComposition({ onBack }: FinalCompositionProps) {
       }
 
       await composeVideo(request);
-      // Don't set phase to 'complete' here - wait for jobStatus to update
       
     } catch (error) {
       console.error('❌ Composition process failed:', error);
@@ -190,6 +237,13 @@ export function FinalComposition({ onBack }: FinalCompositionProps) {
 
   // Auto-start composition when component mounts (if not already started)
   useEffect(() => {
+    // If rendered video exists, use it
+    if (renderedVideoUrl && !hasStarted && !finalVideo) {
+      handleStartComposition();
+      return;
+    }
+
+    // Otherwise, check for completed scenes
     const hasCompletedVideos = scenes.some(scene => 
       scene.state === 'video' && 
       scene.video_url && 
@@ -199,14 +253,34 @@ export function FinalComposition({ onBack }: FinalCompositionProps) {
     if (!hasStarted && !finalVideo && hasCompletedVideos) {
       handleStartComposition();
     }
-  }, []);
+  }, [renderedVideoUrl]);
 
   const handleDownload = () => {
-    if (jobStatus?.video_url) {
+    const videoUrl = jobStatus?.video_url || finalVideo?.video_url || renderedVideoUrl;
+    if (videoUrl) {
       // Download URL is relative to API
-      const downloadUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}${jobStatus.video_url}`;
+      const downloadUrl = videoUrl.startsWith('http') 
+        ? videoUrl 
+        : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}${videoUrl}`;
       window.open(downloadUrl, '_blank');
     }
+  };
+
+  // Get video URL for display
+  const getVideoUrl = () => {
+    if (jobStatus?.video_url) {
+      const url = jobStatus.video_url;
+      return url.startsWith('http') ? url : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}${url}`;
+    }
+    if (finalVideo?.video_url) {
+      const url = finalVideo.video_url;
+      return url.startsWith('http') ? url : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}${url}`;
+    }
+    if (renderedVideoUrl) {
+      const url = renderedVideoUrl;
+      return url.startsWith('http') ? url : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}${url}`;
+    }
+    return null;
   };
 
   return (
@@ -234,11 +308,11 @@ export function FinalComposition({ onBack }: FinalCompositionProps) {
         </div>
       )}
 
-      {/* Completed */}
-      {isComplete && finalVideo && (
+      {/* Completed or Rendered Video Ready */}
+      {((isComplete && finalVideo) || (renderedVideoUrl && !audioUrl && !isComposing)) && (
         <div className="flex flex-col items-center justify-center space-y-6">
             {/* Video Preview Player */}
-            {jobStatus?.video_url && (
+            {getVideoUrl() && (
             <div className="w-full max-w-4xl mx-auto">
                 <div className="relative bg-black rounded-lg overflow-hidden shadow-xl aspect-video">
                   <video
@@ -247,7 +321,7 @@ export function FinalComposition({ onBack }: FinalCompositionProps) {
                     loop
                     playsInline
                     className="w-full h-full object-contain"
-                    src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}${jobStatus.video_url}`}
+                    src={getVideoUrl() || ''}
                   >
                     Your browser does not support video playback.
                   </video>
@@ -257,15 +331,15 @@ export function FinalComposition({ onBack }: FinalCompositionProps) {
 
             {/* Video Stats */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-2xl mx-auto">
-              {jobStatus?.duration_seconds && (
+              {(jobStatus?.duration_seconds || renderedVideoDuration || finalVideo?.duration_seconds) && (
                 <div className="text-center p-3 bg-zinc-50 dark:bg-zinc-800 rounded-lg">
-                  <div className="text-2xl font-bold">{jobStatus.duration_seconds.toFixed(1)}s</div>
+                  <div className="text-2xl font-bold">{(jobStatus?.duration_seconds || renderedVideoDuration || finalVideo?.duration_seconds || 0).toFixed(1)}s</div>
                   <div className="text-xs text-muted-foreground">Duration</div>
                 </div>
               )}
-              {jobStatus?.file_size_mb && (
+              {(jobStatus?.file_size_mb || finalVideo?.file_size_mb) && (
                 <div className="text-center p-3 bg-zinc-50 dark:bg-zinc-800 rounded-lg">
-                  <div className="text-2xl font-bold">{jobStatus.file_size_mb.toFixed(1)} MB</div>
+                  <div className="text-2xl font-bold">{(jobStatus?.file_size_mb || finalVideo?.file_size_mb || 0).toFixed(1)} MB</div>
                   <div className="text-xs text-muted-foreground">File Size</div>
                 </div>
               )}

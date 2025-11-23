@@ -42,6 +42,7 @@ export async function checkHealth(): Promise<{ status: string }> {
 import type { MoodGenerationRequest, MoodGenerationResponse } from '@/types/mood.types';
 import type { ScenePlanRequest, ScenePlanResponse } from '@/types/scene.types';
 import type { AudioGenerationRequest, AudioGenerationResponse } from '@/types/audio.types';
+import type { RenderVideoRequest, RenderVideoResponse } from '@/types/composition.types';
 
 /**
  * Generate mood boards from a creative brief
@@ -74,6 +75,18 @@ export async function generateAudio(
   request: AudioGenerationRequest
 ): Promise<AudioGenerationResponse> {
   return apiRequest<AudioGenerationResponse>('/api/audio/generate', {
+    method: 'POST',
+    body: JSON.stringify(request),
+  });
+}
+
+/**
+ * Render video from clips without audio
+ */
+export async function renderVideo(
+  request: RenderVideoRequest
+): Promise<RenderVideoResponse> {
+  return apiRequest<RenderVideoResponse>('/api/composition/render', {
     method: 'POST',
     body: JSON.stringify(request),
   });

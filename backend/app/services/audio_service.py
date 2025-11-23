@@ -8,13 +8,12 @@ from app.config import settings
 class AudioGenerationService:
     """Service for generating background music using Replicate API."""
 
-    # Meta MusicGen model - generates music from text prompts
-    # Can generate up to 30 seconds of audio (perfect for our use case)
-    # Model versions: stereo-large (best quality), melody-large, large, stereo-melody-large
-    PRODUCTION_AUDIO_MODEL = "meta/musicgen:671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedcfb"
+    # Stability AI Stable Audio 2.5 model - generates music from text prompts
+    # Supports variable duration audio generation
+    PRODUCTION_AUDIO_MODEL = "stability-ai/stable-audio-2.5"
 
-    # Development model: Same model but with faster parameters
-    DEVELOPMENT_AUDIO_MODEL = "meta/musicgen:671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedcfb"
+    # Development model: Same model
+    DEVELOPMENT_AUDIO_MODEL = "stability-ai/stable-audio-2.5"
 
     def __init__(self):
         """Initialize the audio generation service with API token."""
@@ -105,9 +104,9 @@ class AudioGenerationService:
         # Join all components
         prompt = ", ".join(components)
 
-        # Ensure prompt isn't too long (MusicGen works best with concise prompts)
-        if len(prompt) > 300:
-            prompt = prompt[:297] + "..."
+        # Ensure prompt isn't too long
+        if len(prompt) > 500:
+            prompt = prompt[:497] + "..."
 
         return prompt
 
@@ -115,59 +114,34 @@ class AudioGenerationService:
         self,
         prompt: str,
         duration: int = 30,
-        model_version: str = "stereo-large",
-        output_format: str = "mp3",
-        temperature: float = 1.0,
-        top_k: int = 250,
-        top_p: float = 0.0,
-        classifier_free_guidance: int = 3,
+        steps: int = 8,
+        cfg_scale: float = 1.0,
         model: Optional[str] = None,
-        timeout: int = 120
+        timeout: int = 300
     ) -> Optional[str]:
         """
-        Generate background music from a text prompt using MusicGen.
+        Generate background music from a text prompt using Stable Audio 2.5.
 
         Args:
             prompt: Text description of the music to generate
-            duration: Duration in seconds (max 30, default: 30)
-            model_version: MusicGen model version (stereo-large, melody-large, large, stereo-melody-large)
-            output_format: Audio format (mp3 or wav, default: mp3)
-            temperature: Sampling temperature (default: 1.0)
-            top_k: Top-k sampling parameter (default: 250)
-            top_p: Top-p sampling parameter (default: 0.0)
-            classifier_free_guidance: Influence of prompt (default: 3)
+            duration: Duration in seconds (variable, default: 30)
+            steps: Number of inference steps (default: 8)
+            cfg_scale: Classifier-free guidance scale (default: 1.0)
             model: Optional model identifier (uses default if not provided)
-            timeout: Timeout in seconds (default: 120)
+            timeout: Timeout in seconds (default: 300)
 
         Returns:
             Audio URL or None if generation failed
         """
         model_id = model or self.default_model
 
-        # Ensure duration doesn't exceed 30 seconds (MusicGen limit)
-        duration = min(duration, 30)
-
-        # Optimize parameters based on environment
-        if settings.is_development():
-            # Faster generation for dev (may sacrifice some quality)
-            temperature = 1.0
-            top_k = 250
-            model_version = "large"  # Faster than stereo-large
-        else:
-            # Higher quality for production
-            model_version = "stereo-large"  # Best quality stereo output
-
-        # Build input parameters
+        # Build input parameters for Stable Audio 2.5
+        # Format: {"steps": 8, "prompt": "...", "duration": <seconds>, "cfg_scale": 1}
         input_params = {
+            "steps": steps,
             "prompt": prompt,
             "duration": duration,
-            "model_version": model_version,
-            "output_format": output_format,
-            "temperature": temperature,
-            "top_k": top_k,
-            "top_p": top_p,
-            "classifier_free_guidance": classifier_free_guidance,
-            "normalization_strategy": "loudness"  # Normalize audio for consistent volume
+            "cfg_scale": cfg_scale
         }
 
         try:
@@ -223,7 +197,7 @@ class AudioGenerationService:
             emotional_tone: List of emotional tones
             aesthetic_direction: Overall aesthetic direction
             style_keywords: Optional list of style keywords
-            duration: Duration in seconds (max 30, default: 30)
+            duration: Duration in seconds (variable, default: 30)
 
         Returns:
             Dictionary with generation results:
@@ -296,7 +270,7 @@ class AudioGenerationService:
             emotional_tone: List of emotional tones
             aesthetic_direction: Overall aesthetic direction
             style_keywords: Optional list of style keywords
-            duration: Duration in seconds (max 30)
+            duration: Duration in seconds (variable)
             max_retries: Maximum number of retry attempts
             base_delay: Base delay in seconds for exponential backoff
 

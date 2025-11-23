@@ -8,6 +8,7 @@ from pathlib import Path
 import httpx
 import hashlib
 from datetime import datetime
+from app.config import settings
 
 
 class FFmpegCompositionService:
@@ -37,15 +38,18 @@ class FFmpegCompositionService:
         Download a file from URL to destination.
 
         Args:
-            url: URL to download from
+            url: URL to download from (can be relative or absolute)
             destination: Path to save the file
 
         Returns:
             True if successful, False otherwise
         """
         try:
+            # Convert relative URLs to full URLs
+            full_url = settings.to_full_url(url)
+            
             async with httpx.AsyncClient(timeout=120.0) as client:
-                response = await client.get(url)
+                response = await client.get(full_url)
                 response.raise_for_status()
 
                 with open(destination, "wb") as f:

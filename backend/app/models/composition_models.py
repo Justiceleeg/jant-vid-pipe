@@ -61,3 +61,18 @@ class CompositionJobStatusResponse(BaseModel):
     success: bool = Field(..., description="Whether status retrieval was successful")
     job_status: Optional[CompositionJobStatus] = Field(None, description="Current job status")
     message: Optional[str] = Field(None, description="Optional message")
+
+
+class RenderVideoRequest(BaseModel):
+    """Request model for rendering video without audio."""
+    clips: List[VideoClipInput] = Field(..., description="List of video clips to render", min_length=1)
+    optimize_size: bool = Field(True, description="Whether to optimize final file size")
+    target_size_mb: float = Field(50.0, description="Target file size in MB", gt=0, le=100)
+
+
+class RenderVideoResponse(BaseModel):
+    """Response model for video rendering."""
+    success: bool = Field(..., description="Whether rendering was successful")
+    video_url: str = Field(..., description="URL of the rendered video")
+    duration_seconds: float = Field(..., description="Duration of the rendered video in seconds")
+    file_size_mb: float = Field(..., description="Size of the rendered video in MB")

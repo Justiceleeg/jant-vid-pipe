@@ -11,8 +11,6 @@ import { useSceneStore } from '@/store/sceneStore';
 import { ToastProvider, useToast } from '@/components/ui/Toast';
 import { Button } from '@/components/ui/button';
 import { STEPS } from '@/lib/steps';
-import { useAudioGeneration } from '@/hooks/useAudioGeneration';
-import type { AudioGenerationRequest } from '@/types/audio.types';
 
 // Storyboard-specific loading phrases that rotate
 const LOADING_PHRASES = [
@@ -99,56 +97,15 @@ function ScenesPageContent() {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   // App-level state for creative brief and mood
-  const { creativeBrief, moods, selectedMoodId, audioUrl, setCurrentStep, setStoryboardCompleted } = useAppStore();
+  const { 
+    setCurrentStep, 
+    setStoryboardCompleted,
+    creativeBrief,
+    selectedMoodId,
+    moods,
+    setRenderingVideo
+  } = useAppStore();
   const { loadProject, getCurrentProject, currentProjectId } = useProjectStore();
-  
-  // Audio generation hook
-  const { generateAudio, isLoading: isGeneratingAudio, error: audioError } = useAudioGeneration();
-  
-  // Audio ref to stop playback when switching projects
-  const audioRef = useRef<HTMLAudioElement>(null);
-  
-  // Stop audio when audioUrl changes or component unmounts
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (audio) {
-      audio.pause();
-      audio.currentTime = 0;
-    }
-    return () => {
-      if (audio) {
-        audio.pause();
-        audio.currentTime = 0;
-      }
-    };
-  }, [audioUrl]);
-  
-  // Handle regenerate audio
-  const handleRegenerateAudio = async () => {
-    if (!creativeBrief || !selectedMoodId || !moods.length) {
-      console.error('Missing required data for audio generation');
-      return;
-    }
-
-    const selectedMood = moods.find((m) => (m as any).mood_id === selectedMoodId || m.id === selectedMoodId);
-    if (!selectedMood) {
-      console.error('Selected mood not found');
-      return;
-    }
-
-    const moodName = (selectedMood as any).style_name || selectedMood.name;
-
-    const audioRequest: AudioGenerationRequest = {
-      mood_name: moodName,
-      mood_description: selectedMood.aesthetic_direction || '',
-      emotional_tone: creativeBrief.emotional_tone || [],
-      aesthetic_direction: selectedMood.aesthetic_direction || '',
-      style_keywords: selectedMood.style_keywords || [],
-      duration: 30,
-    };
-
-    await generateAudio(audioRequest);
-  };
   
   // Get storyboardId from URL or from current project
   const currentProject = getCurrentProject();
@@ -201,17 +158,6 @@ function ScenesPageContent() {
   // Session recovery
   const { isRecovering } = useStoryboardRecovery();
 
-  // Show toast for audio errors
-  useEffect(() => {
-    if (audioError) {
-      addToast({
-        type: 'error',
-        message: audioError,
-        duration: 5000,
-      });
-    }
-  }, [audioError, addToast]);
-  
   // Show toast for storyboard errors
   useEffect(() => {
     if (error && storyboard) {
@@ -562,12 +508,69 @@ function ScenesPageContent() {
     setIsPreviewOpen(true);
   };
 
-  // Handle generate final video
-  const handleGenerateFinalVideo = () => {
-    // Mark storyboard as completed and navigate to final composition
-    setStoryboardCompleted(true);
-    setCurrentStep(STEPS.FINAL);
-    router.push(`/project/${projectId}/final`);
+  // Handle render video
+  const handleRenderVideo = async () => {
+    // Get all completed video scenes
+    const videoScenes = scenes.filter(
+      scene => scene.state === 'video' && 
+      scene.video_url && 
+      scene.generation_status.video === 'complete'
+    );
+
+    if (videoScenes.length === 0) {
+      addToast({
+        type: 'error',
+        message: 'No completed video scenes available. Please ensure all scenes have generated videos.',
+        duration: 5000,
+      });
+      return;
+    }
+
+    // Convert scenes to VideoClipInput format
+    const clips = videoScenes.map((scene, index) => ({
+      scene_number: index + 1,
+      video_url: scene.video_url!,
+      duration: scene.video_duration,
+    }));
+
+    // Set rendering state and navigate immediately
+    setRenderingVideo(true);
+
+    // Navigate to audio page immediately
+    setCurrentStep(STEPS.AUDIO);
+    router.push(`/project/${projectId}/audio`);
+
+    // Start rendering in the background
+    try {
+      // Import renderVideo function
+      const { renderVideo } = await import('@/lib/api/client');
+      
+      // Render video without audio
+      const response = await renderVideo({
+        clips,
+        optimize_size: true,
+        target_size_mb: 50,
+      });
+
+      if (response.success) {
+        // Store rendered video URL and duration in app store
+        const { setRenderedVideoUrl, setRenderedVideoDuration } = useAppStore.getState();
+        setRenderedVideoUrl(response.video_url);
+        setRenderedVideoDuration(response.duration_seconds);
+        setRenderingVideo(false);
+      } else {
+        throw new Error('Failed to render video');
+      }
+    } catch (error) {
+      setRenderingVideo(false);
+      addToast({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'Failed to render video',
+        duration: 5000,
+      });
+      // Navigate back to scenes page on error
+      router.push(`/project/${projectId}/scenes`);
+    }
   };
 
   // Loading state
@@ -670,7 +673,7 @@ function ScenesPageContent() {
           scenes={scenes}
           onRegenerateAll={handleRegenerateAll}
           onPreviewAll={handlePreviewAll}
-          onGenerateFinalVideo={handleGenerateFinalVideo}
+          onGenerateFinalVideo={handleRenderVideo}
           onApproveText={handleApproveText}
           onRegenerateText={handleRegenerateText}
           onEditText={handleEditText}
@@ -682,11 +685,6 @@ function ScenesPageContent() {
           onRemoveScene={handleRemoveScene}
           onReorderScenes={handleReorderScenes}
           isLoading={isSaving || isRegeneratingAll}
-          audioUrl={audioUrl}
-          isGeneratingAudio={isGeneratingAudio}
-          onRegenerateAudio={handleRegenerateAudio}
-          audioRef={audioRef}
-          canGenerateAudio={!!(creativeBrief && selectedMoodId)}
           allScenesReady={scenes.every(scene => scene.state === 'video' && scene.generation_status.video === 'complete')}
           readyCount={scenes.filter(scene => scene.state === 'video' && scene.generation_status.video === 'complete').length}
           totalScenes={scenes.length}
