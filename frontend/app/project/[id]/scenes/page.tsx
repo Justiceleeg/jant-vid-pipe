@@ -533,7 +533,11 @@ function ScenesPageContent() {
     const clips = videoScenes.map((scene, index) => ({
       scene_number: index + 1,
       video_url: scene.video_url!,
-      duration: scene.video_duration,
+      duration: scene.trim_end_time && scene.trim_start_time
+        ? scene.trim_end_time - scene.trim_start_time
+        : scene.video_duration,
+      trim_start_time: scene.trim_start_time ?? undefined,
+      trim_end_time: scene.trim_end_time ?? undefined,
     }));
 
     // Set rendering state and navigate immediately
