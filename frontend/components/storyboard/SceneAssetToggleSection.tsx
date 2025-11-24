@@ -202,13 +202,13 @@ export function SceneAssetToggleSection({ scene }: SceneAssetToggleSectionProps)
   }) => {
     // Always render the same structure to maintain consistent layout
     return (
-      <div className="flex items-center gap-4 min-h-[8rem]">
-        <h5 className="text-base font-semibold text-foreground whitespace-nowrap w-36 flex-shrink-0">{label}</h5>
-        <div className="flex flex-wrap gap-3 flex-1 items-center min-h-[8rem]">
+      <div className="flex items-center gap-3 min-h-[7rem]">
+        <h5 className="text-sm font-semibold text-foreground whitespace-nowrap w-32 flex-shrink-0">{label}</h5>
+        <div className="flex flex-wrap gap-2.5 flex-1 items-center min-h-[7rem]">
           {isLoading ? (
-            <div className="text-base text-muted-foreground">Loading...</div>
+            <div className="text-sm text-muted-foreground">Loading...</div>
           ) : assets.length === 0 ? (
-            <div className="text-base text-muted-foreground italic">No assets available</div>
+            <div className="text-sm text-muted-foreground italic">No assets available</div>
           ) : (
             assets.map((asset) => {
               const isSelected = selectedId === asset.asset_id;
@@ -217,7 +217,7 @@ export function SceneAssetToggleSection({ scene }: SceneAssetToggleSectionProps)
                 <div
                   key={asset.asset_id}
                   className={cn(
-                    'border-2 rounded p-2.5 cursor-pointer transition-all flex-shrink-0',
+                    'border-2 rounded p-2 cursor-pointer transition-all flex-shrink-0',
                     isSelected
                       ? 'border-primary shadow-sm'
                       : 'border-border hover:border-primary/50 hover:shadow-sm',
@@ -225,7 +225,7 @@ export function SceneAssetToggleSection({ scene }: SceneAssetToggleSectionProps)
                   )}
                   onClick={() => !isToggling && onToggle(!isSelected, asset.asset_id)}
                 >
-                  <div className="relative w-28 h-28 aspect-square rounded overflow-hidden bg-muted">
+                  <div className="relative w-24 h-24 aspect-square rounded overflow-hidden bg-muted">
                     {imageUrl && (
                       <Image
                         src={imageUrl}

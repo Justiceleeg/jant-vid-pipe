@@ -97,11 +97,13 @@ export function StoryboardCarousel({
   const currentSceneIdFromOrder = storyboard.scene_order[currentSceneIndex];
   const currentScene = scenes.find(s => s.id === currentSceneIdFromOrder);
   
-  // Check if any scene is generating
+  // Check if any scene is generating (excluding newly added temp scenes)
+  // This allows adding new scenes even when a newly added scene is generating
   const isAnySceneGenerating = scenes.some(
     (scene) =>
-      scene.generation_status.image === 'generating' ||
-      scene.generation_status.video === 'generating'
+      !scene.id.startsWith('temp-') && // Exclude temp scenes (newly added)
+      (scene.generation_status.image === 'generating' ||
+      scene.generation_status.video === 'generating')
   );
 
   // Note: allScenesReady, readyCount, and totalScenes are passed as props from parent

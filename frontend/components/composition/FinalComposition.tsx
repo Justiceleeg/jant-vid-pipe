@@ -284,23 +284,29 @@ export function FinalComposition({ onBack }: FinalCompositionProps) {
     return null;
   };
 
+  // Determine if we should show loading
+  // Show loading only when actively composing or job is in progress without a completed video
+  const hasVideoUrl = !!getVideoUrl();
+  const isJobInProgress = jobStatus && !isComplete && !isFailed;
+  const showLoading = (isComposing || isJobInProgress) && !hasVideoUrl;
+  const showVideo = hasVideoUrl && !showLoading;
+
   return (
-    <div className="space-y-6">
+    <div className="w-full h-full flex flex-col items-center justify-center min-h-0 max-h-full overflow-hidden">
 
       {/* In Progress - Loading Animation */}
-      {(hasStarted || isComposing || (jobStatus && !isComplete && !isFailed)) && !(isComplete && finalVideo && jobStatus?.video_url) && (
-        <div className="flex items-center justify-center min-h-[70vh] w-full">
+      {showLoading && (
+        <div className="flex items-center justify-center w-full h-full">
           <LoadingPhrases />
         </div>
       )}
 
       {/* Completed or Rendered Video Ready */}
-      {((isComplete && finalVideo) || (renderedVideoUrl && !isComposing)) && (
-        <div className="w-full h-full flex flex-col items-center justify-center space-y-4 sm:space-y-6 min-h-0">
-            {/* Video Preview Player - takes up most of the space */}
-            {getVideoUrl() && (
-            <div className="w-full flex-1 min-h-0 flex items-center justify-center px-2 sm:px-4">
-                <div className="relative bg-black rounded-lg overflow-hidden shadow-xl w-full h-full max-h-[70vh] aspect-video">
+      {showVideo && (
+        <div className="w-full h-full flex flex-col items-center justify-center space-y-3 sm:space-y-4 min-h-0 max-h-full overflow-y-auto px-2 sm:px-4 py-2 sm:py-4">
+            {/* Video Preview Player - centered on screen */}
+            <div className="w-full flex items-center justify-center flex-shrink-0">
+                <div className="relative bg-black rounded-lg overflow-hidden shadow-xl w-full max-w-5xl" style={{ aspectRatio: '16/9', maxHeight: '60vh', maxWidth: '100%' }}>
                   <video
                     controls
                     autoPlay
@@ -312,35 +318,34 @@ export function FinalComposition({ onBack }: FinalCompositionProps) {
                     Your browser does not support video playback.
                   </video>
                 </div>
-              </div>
-            )}
+            </div>
 
             {/* Video Stats */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 w-full max-w-4xl mx-auto px-4 flex-shrink-0">
+          <div className="flex justify-center items-center gap-2 sm:gap-3 flex-shrink-0">
               {(jobStatus?.duration_seconds || renderedVideoDuration || finalVideo?.duration_seconds) && (
-                <div className="text-center p-3 sm:p-4 bg-zinc-50 dark:bg-zinc-800 rounded-lg">
-                  <div className="text-xl sm:text-2xl font-bold">{(jobStatus?.duration_seconds || renderedVideoDuration || finalVideo?.duration_seconds || 0).toFixed(1)}s</div>
-                  <div className="text-xs text-muted-foreground mt-1">Duration</div>
+                <div className="text-center p-2 sm:p-2.5 bg-zinc-50 dark:bg-zinc-800 rounded-lg min-w-[70px] sm:min-w-[80px]">
+                  <div className="text-base sm:text-lg font-bold">{(jobStatus?.duration_seconds || renderedVideoDuration || finalVideo?.duration_seconds || 0).toFixed(1)}s</div>
+                  <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">Duration</div>
                 </div>
               )}
               {(jobStatus?.file_size_mb || finalVideo?.file_size_mb) && (
-                <div className="text-center p-3 sm:p-4 bg-zinc-50 dark:bg-zinc-800 rounded-lg">
-                  <div className="text-xl sm:text-2xl font-bold">{(jobStatus?.file_size_mb || finalVideo?.file_size_mb || 0).toFixed(1)} MB</div>
-                  <div className="text-xs text-muted-foreground mt-1">File Size</div>
+                <div className="text-center p-2 sm:p-2.5 bg-zinc-50 dark:bg-zinc-800 rounded-lg min-w-[70px] sm:min-w-[80px]">
+                  <div className="text-base sm:text-lg font-bold">{(jobStatus?.file_size_mb || finalVideo?.file_size_mb || 0).toFixed(1)} MB</div>
+                  <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">File Size</div>
                 </div>
               )}
-              <div className="text-center p-3 sm:p-4 bg-zinc-50 dark:bg-zinc-800 rounded-lg">
-                <div className="text-xl sm:text-2xl font-bold">{scenes.filter(s => s.state === 'video' && s.video_url).length}</div>
-                <div className="text-xs text-muted-foreground mt-1">Scenes</div>
+              <div className="text-center p-2 sm:p-2.5 bg-zinc-50 dark:bg-zinc-800 rounded-lg min-w-[70px] sm:min-w-[80px]">
+                <div className="text-base sm:text-lg font-bold">{scenes.filter(s => s.state === 'video' && s.video_url).length}</div>
+                <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">Scenes</div>
               </div>
-              <div className="text-center p-3 sm:p-4 bg-zinc-50 dark:bg-zinc-800 rounded-lg">
-                <div className="text-xl sm:text-2xl font-bold">16:9</div>
-                <div className="text-xs text-muted-foreground mt-1">Aspect Ratio</div>
+              <div className="text-center p-2 sm:p-2.5 bg-zinc-50 dark:bg-zinc-800 rounded-lg min-w-[70px] sm:min-w-[80px]">
+                <div className="text-base sm:text-lg font-bold">16:9</div>
+                <div className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">Aspect Ratio</div>
               </div>
             </div>
 
             {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row justify-center gap-3 flex-shrink-0 pb-2 sm:pb-4">
+          <div className="flex flex-col sm:flex-row justify-center gap-2 sm:gap-3 flex-shrink-0 pb-2">
             <button
               onClick={handleDownload}
               className="text-sm sm:text-base px-6 sm:px-8 py-2.5 sm:py-3 rounded-full bg-[rgb(255,81,1)] text-[rgb(196,230,43)] hover:bg-[rgb(255,100,20)] font-bold shadow-md hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-2"

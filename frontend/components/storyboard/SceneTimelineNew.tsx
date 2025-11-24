@@ -296,7 +296,7 @@ export function SceneTimelineNew({
                   {sceneToDeleteData.video_url && <div>• Video</div>}
                 </div>
               )}
-              <p className="text-sm text-destructive font-medium">
+              <p className="text-sm font-medium" style={{ color: 'rgb(255, 81, 1)' }}>
                 Warning: This action cannot be undone. All content for this scene will be lost.
               </p>
             </div>
@@ -309,9 +309,9 @@ export function SceneTimelineNew({
                 Cancel
               </Button>
               <Button
-                variant="destructive"
                 size="sm"
                 onClick={handleConfirmDelete}
+                className="bg-[rgb(255,81,1)] text-white hover:bg-[rgb(255,100,20)]"
               >
                 Delete Scene
               </Button>
