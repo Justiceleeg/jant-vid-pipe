@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+*.egg-info/
+.pytest_cache/
+
+# Local uploads and data
+uploads/
+nerf/
+*.db
+*.sqlite
+
+# Tests
+tests/
+test_*.py
+*_test.py
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+docs/
+
+# IMPORTANT: serviceAccountKey.json must be included in Docker image for Firestore/Firebase Storage
+# It's excluded from git via .gitignore but MUST be included in Docker build
+# The backend Dockerfile will copy it into the image
+
+# Logs
+*.log
+logs/
