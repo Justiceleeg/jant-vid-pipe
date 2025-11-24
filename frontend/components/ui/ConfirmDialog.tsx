@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
 
@@ -25,11 +25,18 @@ export function ConfirmDialog({
   onCancel,
   variant = 'default',
 }: ConfirmDialogProps) {
-  if (!isOpen) return null;
+  const [mounted, setMounted] = useState(false);
 
-  const modalContent = (
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
+
+  if (!isOpen || !mounted) return null;
+
+  const dialogContent = (
     <div 
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] animate-fadeIn"
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] animate-fadeIn"
       onClick={onCancel}
     >
       <div 
@@ -67,11 +74,7 @@ export function ConfirmDialog({
     </div>
   );
 
-  // Use portal to render outside the carousel container to avoid stacking context issues
-  if (typeof window !== 'undefined') {
-    return createPortal(modalContent, document.body);
-  }
-  
-  return modalContent;
+  // Render to document.body using portal to avoid overflow clipping
+  return createPortal(dialogContent, document.body);
 }
 

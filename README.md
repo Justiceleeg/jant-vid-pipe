@@ -16,8 +16,9 @@ The application follows a streamlined 4-step workflow within projects:
 
 - **Project-Based**: All work is organized into projects with automatic saving
 - **Multi-Project Support**: Switch between projects without losing progress
-- **Persistent State**: Project data saves to browser localStorage
+- **Persistent State**: Project data saves to Firestore (with localStorage fallback)
 - **Scene Store**: Real-time scene updates via Server-Sent Events (SSE)
+- **Backend Persistence**: Storyboards and scenes persist in Firestore database
 
 ## 🚀 Quick Start
 
@@ -29,9 +30,10 @@ The application follows a streamlined 4-step workflow within projects:
   - macOS: `brew install ffmpeg`
   - Linux: `sudo apt-get install ffmpeg` (Ubuntu/Debian) or `sudo yum install ffmpeg` (RHEL/CentOS)
   - Windows: Download from [ffmpeg.org](https://ffmpeg.org/download.html)
-- **Modal Account** (for NeRF processing - optional for MVP)
-  - Sign up at [modal.com](https://modal.com)
-  - Free tier available for development/testing
+- **Firebase Project** (for authentication and database)
+  - Create a project at [Firebase Console](https://console.firebase.google.com)
+  - Enable Authentication (Email/Password) and Firestore Database
+  - Download service account key for backend
 
 ### Installation
 
@@ -62,22 +64,16 @@ The application follows a streamlined 4-step workflow within projects:
    pip install -r requirements.txt
    ```
 
-5. **Set up Modal (for NeRF processing - optional for MVP)**
+5. **Set up Firebase**
 
-   If you want to use NeRF product video generation:
-   
-   ```bash
-   # Install Modal CLI
-   pip install modal
-   
-   # Authenticate (opens browser)
-   modal token new
-   
-   # Deploy Modal functions to development
-   ENVIRONMENT=development modal deploy modal_functions/nerf_app.py --name nerf-dev
-   ```
-   
-   Get your Modal credentials from [modal.com/settings](https://modal.com/settings) for use in `.env`.
+   **Backend Setup:**
+   - Download your Firebase service account key from [Firebase Console](https://console.firebase.google.com/project/_/settings/serviceaccounts/adminsdk)
+   - Save it as `backend/serviceAccountKey.json`
+   - The backend requires this file to initialize Firestore
+
+   **Frontend Setup:**
+   - Get your Firebase web config from [Firebase Console](https://console.firebase.google.com/project/_/settings/general)
+   - Copy the Firebase configuration values for use in `frontend/.env.local`
 
 6. **Configure environment variables**
 
@@ -87,9 +83,9 @@ The application follows a streamlined 4-step workflow within projects:
    REPLICATE_API_TOKEN=your_replicate_api_token_here
    OPENAI_API_KEY=your_openai_api_key_here
    
-   # Modal API Keys (optional - for NeRF processing)
-   MODAL_TOKEN_ID=your_modal_token_id
-   MODAL_TOKEN_SECRET=your_modal_token_secret
+   # Firebase Configuration
+   # Service account key should be placed at: backend/serviceAccountKey.json
+   FIREBASE_STORAGE_BUCKET=your-project-id.appspot.com  # Optional: auto-detected from service account
    
    # Environment Configuration (defaults to "development")
    ENVIRONMENT=development  # Options: development, production
@@ -98,50 +94,55 @@ The application follows a streamlined 4-step workflow within projects:
    # REPLICATE_IMAGE_MODEL=stability-ai/sdxl:...  # Override default model
    # OPENAI_MODEL=gpt-4o  # Override default model
    
+   # Product Compositing (optional)
+   USE_KONTEXT_COMPOSITE=true
+   COMPOSITE_METHOD=kontext
+   KONTEXT_MODEL_ID=flux-kontext-apps/multi-image-kontext-pro
+   
    # CORS Configuration
    CORS_ORIGINS=http://localhost:3000
+   
+   # Backend API Base URL (for webhooks)
+   API_BASE_URL=http://localhost:8000
    ```
    
    > 💡 **Performance & Cost Optimization:** In development mode, the app automatically optimizes for speed:
    > - **Replicate Image Generation**:
-   >   - **Dev**: 15 inference steps, guidance scale 6.5, resolution 512×912 = ~10-15s/image
-   >   - **Prod**: 50 inference steps, guidance scale 7.5, resolution 1080×1920 = ~30-60s/image
-   > - **Images per mood**: 1 in dev (faster), 4 in prod (more variety)
-   > - **OpenAI**: GPT-3.5-turbo (~$0.0015/1K tokens) instead of GPT-4o (~$0.005/1K tokens)
+   >   - **Dev**: 20 inference steps, guidance scale 7.0, resolution 1280×720 = ~15-25s/image
+   >   - **Prod**: 50 inference steps, guidance scale 7.5, resolution 1920×1080 = ~30-60s/image
+   > - **Images per mood**: 1 (configurable via `IMAGES_PER_MOOD` env var)
+   > - **OpenAI**: GPT-3.5-turbo (~$0.0015/1K tokens) in dev, GPT-4o (~$0.005/1K tokens) in prod
    > 
    > **Expected generation time:**
-   > - **Dev**: ~10-20 seconds for 3 images (3 moods × 1 image) at lower quality
+   > - **Dev**: ~15-30 seconds for 3 images (3 moods × 1 image) at lower quality
    > - **Prod**: ~1-2 minutes for 3 images (3 moods × 1 image) at full quality
    > 
-   > **To test with higher quality in dev mode**, adjust these settings:
+   > **To customize quality settings**, set these environment variables in `backend/.env`:
    > 
-   > 1. **Images Per Mood** - Edit `backend/app/routers/moods.py` (line 67):
-   >    ```python
-   >    images_per_mood = 1  # Default is 1 image per mood
-   >    ```
-   > 
-   > 2. **Image Resolution** - Edit `backend/app/routers/moods.py` (lines 75-76):
-   >    ```python
-   >    image_width = 640   # Higher = better quality (512→640→1080)
-   >    image_height = 1136 # Must be divisible by 8 for SDXL
-   >    ```
-   > 
-   > 3. **Inference Steps** - Edit `backend/app/services/replicate_service.py` (line 77):
-   >    ```python
-   >    num_inference_steps = 20  # Higher = better quality (15→20→30→50)
-   >    ```
-   > 
-   > 4. **Guidance Scale** - Edit `backend/app/services/replicate_service.py` (line 84):
-   >    ```python
-   >    guidance_scale = 7.0  # Higher = better prompt adherence (6.5→7.0→7.5)
-   >    ```
+   > ```env
+   > # Image generation settings
+   > IMAGES_PER_MOOD=1        # Number of images per mood (default: 1)
+   > IMAGE_WIDTH=1920          # Image width (default: 1280 dev, 1920 prod)
+   > IMAGE_HEIGHT=1080         # Image height (default: 720 dev, 1080 prod)
+   > ```
    > 
    > Set `ENVIRONMENT=production` to use full-quality settings automatically.
 
    **Frontend** (`frontend/.env.local`):
    ```env
-   OPENAI_API_KEY=your_openai_api_key_here
+   # API Configuration
    NEXT_PUBLIC_API_URL=http://localhost:8000
+   
+   # Firebase Web Configuration (required for authentication and data persistence)
+   NEXT_PUBLIC_FIREBASE_API_KEY=your_firebase_api_key
+   NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+   NEXT_PUBLIC_FIREBASE_PROJECT_ID=your-project-id
+   NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your-project-id.appspot.com
+   NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+   NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
+   
+   # OpenAI (optional - for chat features)
+   OPENAI_API_KEY=your_openai_api_key_here
    ```
 
    > 💡 **Tip:** Copy `.env.example` from the root directory as a template.
@@ -201,36 +202,54 @@ jant-vid-pipe/
 │
 ├── backend/                    # FastAPI application
 │   ├── app/
-│   │   ├── main.py      # FastAPI app entry point
-│   │   ├── config.py    # Configuration settings
-│   │   ├── routers/     # API endpoint routers
-│   │   ├── services/    # Business logic services
-│   │   │   └── modal_service.py  # Modal API client
-│   │   ├── models/      # Pydantic models
-│   │   │   └── nerf_models.py    # NeRF pipeline schemas
-│   │   └── utils/       # Utility functions
-│   ├── nerf/            # NeRF processing outputs
-│   │   ├── models/      # Trained NeRF models
-│   │   └── renders/     # Rendered frames
-│   ├── uploads/         # Temporary file uploads
-│   ├── requirements.txt # Python dependencies
-│   └── tests/           # Backend tests
+│   │   ├── main.py            # FastAPI app entry point
+│   │   ├── config.py          # Configuration settings
+│   │   ├── database.py        # Database interface (Firestore)
+│   │   ├── firestore_database.py  # Firestore implementation
+│   │   ├── routers/             # API endpoint routers
+│   │   │   ├── admin.py        # Admin metrics endpoints
+│   │   │   ├── audio.py        # Audio generation
+│   │   │   ├── backgrounds.py  # Background assets
+│   │   │   ├── brand.py        # Brand assets
+│   │   │   ├── character.py    # Character assets
+│   │   │   ├── composition.py  # Video composition
+│   │   │   ├── moods.py        # Mood board generation
+│   │   │   ├── product.py      # Product assets
+│   │   │   ├── scenes.py       # Scene operations
+│   │   │   ├── storyboards.py  # Storyboard CRUD + SSE
+│   │   │   ├── video.py        # Video generation
+│   │   │   ├── webhooks.py     # Replicate webhooks
+│   │   │   └── whisper.py      # Speech-to-text
+│   │   ├── services/           # Business logic services
+│   │   │   ├── audio_service.py
+│   │   │   ├── background_service.py
+│   │   │   ├── brand_service.py
+│   │   │   ├── character_service.py
+│   │   │   ├── ffmpeg_service.py
+│   │   │   ├── firebase_storage_service.py
+│   │   │   ├── metrics_service.py
+│   │   │   ├── mood_service.py
+│   │   │   ├── product_service.py
+│   │   │   ├── rate_limiter.py
+│   │   │   ├── replicate_service.py
+│   │   │   ├── scene_service.py
+│   │   │   ├── storyboard_service.py
+│   │   │   └── whisper_service.py
+│   │   ├── models/             # Pydantic models
+│   │   └── utils/              # Utility functions
+│   ├── uploads/                # Temporary file uploads
+│   ├── serviceAccountKey.json  # Firebase service account (required)
+│   ├── requirements.txt        # Python dependencies
+│   └── tests/                  # Backend tests
 │
-├── modal_functions/     # Modal serverless functions (NeRF)
-│   ├── nerf_app.py      # Main Modal app
-│   ├── shared/          # Shared utilities
-│   │   ├── config.py    # NeRF Studio configuration
-│   │   ├── utils.py     # Helper functions
-│   │   └── progress.py  # Progress tracking
-│   ├── requirements.txt # Modal dependencies
-│   └── README.md        # Modal setup guide
+├── docs/                       # Documentation
+│   ├── architecture.md         # Technical Architecture
+│   ├── composite_deployment.md # Compositing deployment guide
+│   ├── composite_testing.md    # Compositing testing guide
+│   ├── implementation-notes.md # Implementation details
+│   └── USER_GUIDE.md           # User guide
 │
-├── docs/                 # Documentation
-│   ├── prd.md           # Product Requirements Document
-│   ├── architecture.md  # Technical Architecture
-│   └── nerf_md.md       # NeRF implementation details
-│
-└── .cursor/             # Cursor IDE configuration
+└── .cursor/                    # Cursor IDE configuration
 ```
 
 ## 🛠️ Tech Stack
@@ -238,7 +257,8 @@ jant-vid-pipe/
 ### Frontend
 - **Framework:** Next.js 16 (App Router)
 - **Language:** TypeScript
-- **Authentication:** Clerk (user management & auth)
+- **Authentication:** Firebase Auth (email/password)
+- **Database:** Firestore (with localStorage fallback)
 - **UI Components:** shadcn/ui
 - **Styling:** Tailwind CSS v4
 - **State Management:** Zustand (3 stores: appStore, projectStore, sceneStore)
@@ -248,15 +268,19 @@ jant-vid-pipe/
 
 ### Backend
 - **Framework:** FastAPI (Python 3.11+)
+- **Database:** Firestore (via Firebase Admin SDK)
+- **Storage:** Firebase Storage (for generated assets)
 - **AI Services:** Replicate API (image & video generation)
-- **NeRF Processing:** Modal + NeRF Studio (3D product videos)
 - **Video Processing:** FFmpeg (via `ffmpeg-python`)
 - **Async Processing:** Python asyncio/async-await
 
 ### External Services
-- **OpenAI API:** GPT-4o (chat & creative brief synthesis)
-- **Replicate:** Image generation, video generation (img2vid)
-- **Modal:** Serverless GPU computing (COLMAP, NeRF training, rendering)
+- **Firebase:** Authentication, Firestore database, and Storage
+- **OpenAI API:** GPT-4o/GPT-3.5-turbo (chat & creative brief synthesis)
+- **Replicate:** 
+  - Image generation (SDXL)
+  - Video generation (img2vid)
+  - Product compositing (FLUX Kontext)
 
 ## 📚 Documentation
 
@@ -273,37 +297,6 @@ jant-vid-pipe/
 ### Deployment & Testing
 - **[Composite Testing Guide](docs/composite_testing.md)** - Testing guide for product compositing
 - **[Composite Deployment Guide](docs/composite_deployment.md)** - Deployment instructions for compositing features
-- **[Modal Functions README](modal_functions/README.md)** - Setup and deployment guide for Modal functions
-
-## 🎬 NeRF Product Videos (Optional Feature)
-
-This project includes an advanced NeRF-based product video generation system:
-
-### What is NeRF?
-Neural Radiance Fields (NeRF) allows you to create stunning 360° product videos from just 80 product photos. The system:
-1. **Processes photos** using COLMAP (camera pose estimation)
-2. **Trains a 3D model** using NeRF Studio on cloud GPUs
-3. **Renders 1440 frames** with transparent backgrounds for seamless compositing
-
-### Quick Start for NeRF
-
-1. **Set up Modal** (see installation step 6 above)
-2. **Configure credentials** in `backend/.env`
-3. **Deploy Modal functions**:
-   ```bash
-   ENVIRONMENT=development modal deploy modal_functions/nerf_app.py --name nerf-dev
-   ```
-4. **Upload product photos** (80 images recommended)
-5. **Start processing** via API or frontend
-
-### Cost Estimate
-- **Development (T4 GPU)**: ~$0.30 per product
-- **Production (A10G GPU)**: ~$0.70 per product
-- Includes COLMAP processing, NeRF training, and frame rendering
-
-### More Information
-- [NeRF Implementation Guide](nerf_md.md) - Complete technical details
-- [Modal Functions README](modal_functions/README.md) - Deployment and configuration
 
 ## 🎨 Product Compositing
 
@@ -370,6 +363,34 @@ USE_KONTEXT_COMPOSITE=false
 - [Manual Testing Guide](docs/composite_testing.md) - Comprehensive testing checklist
 - [Deployment Guide](docs/composite_deployment.md) - Production deployment instructions
 
+## 🔐 Authentication & Database
+
+### Firebase Setup
+
+The application uses Firebase for authentication and data persistence:
+
+1. **Authentication**: Firebase Auth with email/password
+   - Users can sign up and sign in through the frontend
+   - Authentication state is managed client-side with Firebase SDK
+   - Protected routes use `AuthGuard` components
+
+2. **Database**: Firestore
+   - Storyboards and scenes persist in Firestore
+   - User assets are stored per user in Firestore collections
+   - Backend uses Firebase Admin SDK for server-side operations
+   - Frontend uses Firebase SDK with localStorage fallback
+
+3. **Storage**: Firebase Storage
+   - Generated images, videos, and assets are stored in Firebase Storage
+   - Public URLs are generated for frontend access
+
+### Required Firebase Services
+
+Enable these in your Firebase Console:
+- **Authentication** → Sign-in method: Email/Password
+- **Firestore Database** → Create database (start in test mode for development)
+- **Storage** → Create storage bucket
+
 ## 🧪 Testing
 
 ### Backend Health Check
@@ -379,16 +400,3 @@ curl http://localhost:8000/health
 
 ### Frontend
 Open http://localhost:3000 in your browser.
-
-## 🚧 Development Status
-
-This project is currently in MVP development. See the [PRD](docs/prd.md) for feature roadmap and MVP scope.
-
-## 📝 License
-
-[Add your license here]
-
-## 🤝 Contributing
-
-[Add contributing guidelines here]
-

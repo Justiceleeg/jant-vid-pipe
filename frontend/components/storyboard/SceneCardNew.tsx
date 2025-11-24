@@ -127,25 +127,39 @@ export function SceneCardNew({
 
   // Handle regenerate image with warning if video exists
   const handleRegenerateImageClick = async () => {
+    console.log('[SceneCard] Regenerate image clicked', { 
+      sceneState: scene.state, 
+      hasVideoUrl: !!scene.video_url,
+      isGeneratingImage,
+      isGeneratingVideo 
+    });
+    
     if (scene.state === 'video' && scene.video_url) {
+      console.log('[SceneCard] Showing confirmation dialog');
       setShowRegenerateImageConfirm(true);
       return;
     }
     try {
+      console.log('[SceneCard] Calling onRegenerateImage directly');
       await onRegenerateImage();
+      console.log('[SceneCard] Image regeneration started successfully');
     } catch (error) {
-      console.error('Failed to regenerate image:', error);
+      console.error('[SceneCard] Failed to regenerate image:', error);
       // Error is handled by the store and displayed in the error alert
+      throw error; // Re-throw to ensure error is propagated
     }
   };
 
   const handleConfirmRegenerateImage = async () => {
+    console.log('[SceneCard] Confirming image regeneration');
     setShowRegenerateImageConfirm(false);
     try {
       await onRegenerateImage();
+      console.log('[SceneCard] Image regeneration started successfully after confirmation');
     } catch (error) {
-      console.error('Failed to regenerate image:', error);
+      console.error('[SceneCard] Failed to regenerate image after confirmation:', error);
       // Error is handled by the store and displayed in the error alert
+      throw error; // Re-throw to ensure error is propagated
     }
   };
 
@@ -399,7 +413,24 @@ export function SceneCardNew({
 
               {/* Actions */}
               <div className="flex flex-col items-center gap-2.5 pt-4 flex-shrink-0">
-                <Button size="sm" variant="outline" onClick={handleRegenerateImageClick} disabled={isGeneratingImage || isGeneratingVideo} className="w-3/5 h-[32px] text-xs px-3">
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('[SceneCard] Regenerate Image button clicked (IMAGE state)', { 
+                      sceneId: scene.id,
+                      sceneState: scene.state,
+                      isGeneratingImage,
+                      isGeneratingVideo,
+                      disabled: isGeneratingImage || isGeneratingVideo
+                    });
+                    handleRegenerateImageClick();
+                  }} 
+                  disabled={isGeneratingImage || isGeneratingVideo} 
+                  className="w-3/5 h-[32px] text-xs px-3"
+                >
                   <svg className="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
@@ -506,49 +537,68 @@ export function SceneCardNew({
                 )}
               </div>
 
-              {/* Duration configuration */}
-              <div className="space-y-2 pt-4 flex-shrink-0">
-                <div className="flex justify-center">
-                  <div className="w-3/5 flex items-center justify-between">
-                    <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Video Duration</h4>
-                    <div className="flex flex-col items-end">
-                      <span className="text-base font-semibold tabular-nums">{duration.toFixed(1)}s</span>
-                      {localTrimStart !== null && localTrimEnd !== null && (
-                        <span className="text-xs text-primary tabular-nums">
-                          Trimmed: {effectiveDuration.toFixed(1)}s
-                        </span>
-                      )}
+              {/* Duration configuration - only show if video is not complete (trim component handles duration after video is generated) */}
+              {scene.generation_status.video !== 'complete' && (
+                <div className="space-y-2 pt-4 flex-shrink-0">
+                  <div className="flex justify-center">
+                    <div className="w-3/5 flex items-center justify-between">
+                      <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Video Duration</h4>
+                      <div className="flex flex-col items-end">
+                        <span className="text-base font-semibold tabular-nums">{duration.toFixed(1)}s</span>
+                        {localTrimStart !== null && localTrimEnd !== null && (
+                          <span className="text-xs text-primary tabular-nums">
+                            Trimmed: {effectiveDuration.toFixed(1)}s
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
+                  <div className="flex justify-center">
+                    <input
+                      type="range"
+                      min="1"
+                      max="8"
+                      step="0.1"
+                      value={duration}
+                      onChange={(e) => {
+                        const newValue = parseFloat(e.target.value);
+                        setDuration(newValue);
+                      }}
+                      onMouseUp={(e) => {
+                        const newValue = parseFloat((e.target as HTMLInputElement).value);
+                        handleDurationChange(newValue);
+                      }}
+                      onTouchEnd={(e) => {
+                        const newValue = parseFloat((e.target as HTMLInputElement).value);
+                        handleDurationChange(newValue);
+                      }}
+                      className="w-3/5 h-2.5 bg-muted rounded-lg appearance-none cursor-pointer accent-primary hover:accent-primary/80 transition-all duration-200 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:transition-all [&::-webkit-slider-thumb]:duration-200 [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-primary [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={isLoading || isGeneratingImage || isGeneratingVideo}
+                    />
+                  </div>
                 </div>
-                <div className="flex justify-center">
-                  <input
-                    type="range"
-                    min="1"
-                    max="8"
-                    step="0.1"
-                    value={duration}
-                    onChange={(e) => {
-                      const newValue = parseFloat(e.target.value);
-                      setDuration(newValue);
-                    }}
-                    onMouseUp={(e) => {
-                      const newValue = parseFloat((e.target as HTMLInputElement).value);
-                      handleDurationChange(newValue);
-                    }}
-                    onTouchEnd={(e) => {
-                      const newValue = parseFloat((e.target as HTMLInputElement).value);
-                      handleDurationChange(newValue);
-                    }}
-                    className="w-3/5 h-2.5 bg-muted rounded-lg appearance-none cursor-pointer accent-primary hover:accent-primary/80 transition-all duration-200 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:transition-all [&::-webkit-slider-thumb]:duration-200 [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-primary [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={isLoading || isGeneratingImage || isGeneratingVideo}
-                  />
-                </div>
-              </div>
+              )}
 
               {/* Actions */}
               <div className="flex flex-col items-center gap-2.5 pt-4 flex-shrink-0">
-                <Button size="sm" variant="outline" onClick={handleRegenerateImageClick} disabled={isGeneratingImage || isGeneratingVideo} className="w-3/5 h-[32px] text-xs px-3">
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('[SceneCard] Regenerate Image button clicked (VIDEO state)', { 
+                      sceneId: scene.id,
+                      sceneState: scene.state,
+                      isGeneratingImage,
+                      isGeneratingVideo,
+                      disabled: isGeneratingImage || isGeneratingVideo
+                    });
+                    handleRegenerateImageClick();
+                  }} 
+                  disabled={isGeneratingImage || isGeneratingVideo} 
+                  className="w-3/5 h-[32px] text-xs px-3"
+                >
                   <svg className="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
