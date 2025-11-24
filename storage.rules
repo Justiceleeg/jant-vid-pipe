@@ -1,0 +1,64 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // =========================================================================
+    // User-uploaded Assets (via frontend/backend)
+    // =========================================================================
+    
+    // Brand, character, product, background assets
+    match /assets/{assetType}/{allPaths=**} {
+      allow read: if true;  // Public read (for sharing/display)
+      allow write: if request.auth != null;  // Authenticated users can upload
+    }
+    
+    // =========================================================================
+    // Generated Content (AI-generated images/videos)
+    // =========================================================================
+    
+    // Composite images (product compositing)
+    match /composites/{allPaths=**} {
+      allow read: if true;  // Public read
+      allow write: if request.auth != null;  // Backend/authenticated users can write
+    }
+    
+    // Scene images (storyboard scenes)
+    match /scenes/{allPaths=**} {
+      allow read: if true;  // Public read
+      allow write: if request.auth != null;  // Backend/authenticated users can write
+    }
+    
+    // Mood/background images
+    match /moods/{allPaths=**} {
+      allow read: if true;  // Public read
+      allow write: if request.auth != null;  // Backend/authenticated users can write
+    }
+    
+    // =========================================================================
+    // Product-specific Files
+    // =========================================================================
+    
+    match /products/{productId}/{allPaths=**} {
+      allow read: if true;  // Public read for product images
+      allow write: if request.auth != null;  // Authenticated users can upload products
+    }
+    
+    // =========================================================================
+    // Temporary Files
+    // =========================================================================
+    
+    match /temp/{allPaths=**} {
+      allow read: if true;  // Public read (short-lived)
+      allow write: if request.auth != null;  // Backend can write temp files
+    }
+    
+    // =========================================================================
+    // Everything Else - Deny by Default
+    // =========================================================================
+    
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

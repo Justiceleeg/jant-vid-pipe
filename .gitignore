@@ -22,6 +22,9 @@ frontend/.env.local
 **/serviceAccountKey.json
 serviceAccountKey.json
 
+# Firebase config files (SHOULD be committed - these are not sensitive)
+# DO NOT add firestore.rules, firestore.indexes.json, or storage.rules to .gitignore!
+
 # Editor directories and files
 .idea
 .vscode
@@ -61,6 +64,4 @@ salvage_plan/
 tom_planning/
 .claude/
 
-backend/.firebaserc
-backend/firebase.json
 ./backend/serviceAccountKey.json
